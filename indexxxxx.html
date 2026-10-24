@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Health Agent — ارسال فایل به تلگرام</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: Tahoma, sans-serif;
+    background: linear-gradient(135deg, #eef1f5 0%, #dce6f5 100%);
+    display: flex; justify-content: center; align-items: center;
+    min-height: 100vh; padding: 16px;
+  }
+  .card {
+    width: 100%; max-width: 380px;
+    background: #fff; border-radius: 20px;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.12);
+    padding: 32px 24px; text-align: center;
+  }
+  .icon {
+    width: 64px; height: 64px;
+    background: linear-gradient(135deg, #1a73e8, #0d47a1);
+    border-radius: 50%; display: inline-flex;
+    align-items: center; justify-content: center;
+    font-size: 30px; margin-bottom: 16px;
+  }
+  h1 { font-size: 22px; color: #1a1a1a; margin-bottom: 8px; }
+  p { font-size: 13px; color: #666; line-height: 1.8; margin-bottom: 20px; }
+  input[type="file"] {
+    width: 100%; margin-bottom: 16px; padding: 12px;
+    border: 2px dashed #b8c7e0; border-radius: 10px;
+    font-family: Tahoma; font-size: 13px; background: #f7f9fc;
+  }
+  button {
+    width: 100%; padding: 15px;
+    background: linear-gradient(135deg, #1a73e8, #0d47a1);
+    color: #fff; border: none; border-radius: 10px;
+    font-size: 15px; font-family: Tahoma; cursor: pointer;
+  }
+  button:disabled { opacity: 0.6; cursor: not-allowed; }
+  .status { margin-top: 16px; font-size: 13px; color: #666; min-height: 20px; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon">🛡️</div>
+    <h1>Health Agent</h1>
+    <p>فایلت رو انتخاب کن و برای ربات تلگرام بفرست</p>
+    <input type="file" id="fileInput">
+    <button id="sendBtn">ارسال به تلگرام</button>
+    <div class="status" id="statusText"></div>
+  </div>
+
+<script>
+/* ============================================================
+   تنظیمات — این دو مقدار را با مقادیر واقعی خودت جایگزین کن
+   ============================================================ */
+const BOT_TOKEN = 'YOUR_BOT_TOKEN';   // توکن ربات از BotFather
+const CHAT_ID   = 'YOUR_CHAT_ID';     // آیدی عددی چت تو
+
+const sendBtn = document.getElementById('sendBtn');
+const fileInput = document.getElementById('fileInput');
+const statusText = document.getElementById('statusText');
+
+sendBtn.addEventListener('click', async () => {
+  const file = fileInput.files[0];
+  if (!file) {
+    statusText.textContent = '⚠️ اول یه فایل انتخاب کن.';
+    return;
+  }
+  if (file.size > 50 * 1024 * 1024) {
+    statusText.textContent = '⚠️ حجم فایل نباید بیشتر از ۵۰ مگابایت باشه.';
+    return;
+  }
+
+  sendBtn.disabled = true;
+  statusText.textContent = 'در حال ارسال...';
+
+  try {
+    const formData = new FormData();
+    formData.append('chat_id', CHAT_ID);
+    formData.append('document', file);
+
+    const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendDocument`, {
+      method: 'POST',
+      body: formData
+    });
+    const data = await res.json();
+
+    if (data.ok) {
+      statusText.textContent = '✅ فایل ارسال شد. تلگرام را چک کن.';
+      fileInput.value = '';
+    } else {
+      statusText.textContent = '❌ خطا: ' + (data.description || 'نامشخص');
+    }
+  } catch (e) {
+    statusText.textContent = '❌ خطای شبکه: ' + e.message;
+  }
+
+  sendBtn.disabled = false;
+});
+</script>
+</body>
+</html>
