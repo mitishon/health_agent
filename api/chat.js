@@ -27,20 +27,8 @@ export default async function handler(req, res) {
     const contents = Array.isArray(history) ? [...history] : [];
     contents.push({ role: "user", parts: currentParts });
 
-    const model = process.env.GEMINI_MODEL || "gemini-3.8-flash"                    
-                      
-                      
-                      
-                      
-                      
-                      
-                      
-                      
-                      
-                      
-                      
-                      
-  ;
+    // ⚠️ از این پس از gemini-3.8-flash استفاده می‌کنیم
+    const model = process.env.GEMINI_MODEL || "gemini-3.8-flash";
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
 
     const r = await fetch(url, {
@@ -49,6 +37,7 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
         contents,
+        // توجه: پارامترهای temperature/top_p/top_k در Gemini 3 حذف شده‌اند و نباید ارسال شوند
       }),
     });
 
@@ -67,7 +56,7 @@ export default async function handler(req, res) {
 }
 
 // -------------------------------------------------------------
-// System Prompt (شخصیت و چهارچوب مشاوره)
+// System Prompt: شخصیت و چهارچوب مشاوره (فارسی اجباری)
 // -------------------------------------------------------------
 const SYSTEM_PROMPT = `
 You are "Health Agent", a warm, confident, professional AI skin & wellness
