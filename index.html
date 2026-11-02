@@ -130,13 +130,13 @@ async function prepareImage(file, maxSize = 1024) {
       c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
       resolve(c.toDataURL("image/jpeg", 0.85).split(",")[1]);
     };
-    img.onerror = () => reject(new Error('عکس خوانده نشد.'));
+    img.onerror = () => reject(new Error('عکس خوانده نشد. لطفاً یک فایل JPG یا PNG انتخاب کنید.'));
     img.src = URL.createObjectURL(workingFile);
   });
 }
 
 /* ============================================================
-   توابع ارتباط با APIهای ورسل
+   توابع ارتباط با بک‌اند (Vercel API)
    ============================================================ */
 
 // ارسال پیام متنی به تلگرام
@@ -183,16 +183,27 @@ async function callGemini(userText, imageBase64, imageMime) {
     })
   });
 
-  if (!res.ok) throw new Error('API Error');
+  if (!res.ok) {
+    let msg = 'API Error';
+    try {
+      const errData = await res.json();
+      if (errData.error) msg = errData.error;
+    } catch (e) {}
+    throw new Error(msg);
+  }
+  
   const data = await res.json();
 
   if (data.answer) {
-    const userParts = [{ text: finalText }];
-    if (imageBase64) {
-      userParts.push({ inline_data: { mime_type: imageMime || 'image/jpeg', data: imageBase64 } });
-    }
-    conversationHistory.push({ role: 'user', parts: userParts });
+    // مدیریت تاریخچه (دقیقاً مثل کد خودت)
+    const historyText = imageBase64 ? `${finalText} [کاربر یک عکس هم فرستاد]` : finalText;
+    conversationHistory.push({ role: 'user', parts: [{ text: historyText }] });
     conversationHistory.push({ role: 'model', parts: [{ text: data.answer }] });
+    
+    // فقط ۶ پیام آخر (۳ رفت‌وبرگشت) رو نگه دار تا درخواست سبک بمونه
+    if (conversationHistory.length > 6) {
+      conversationHistory = conversationHistory.slice(-6);
+    }
     return data.answer;
   }
   throw new Error(data.error || 'پاسخ نامعتبر');
@@ -312,7 +323,7 @@ sendBtn.addEventListener('click', async () => {
     await sendTextToTelegram(`🤖 پاسخ AI:\n${aiResponse}`);
   } catch (err) {
     typingEl.remove();
-    addMessage('❌ ' + (err.message || 'خطا در ارتباط با سرور.'), false);
+    addMessage('❌ ' + (err.message || 'خطا در ارتباط با سرور. لطفاً دوباره تلاش کنید.'), false);
     console.error(err);
   }
 
