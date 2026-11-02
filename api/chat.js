@@ -27,36 +27,64 @@ export default async function handler(req, res) {
     const contents = Array.isArray(history) ? [...history] : [];
     contents.push({ role: "user", parts: currentParts });
 
-    // ⚠️ از این پس از gemini-3.8-flash استفاده می‌کنیم
-    const model = process.env.GEMINI_MODEL || "gemini-3.8-flash";
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+    // لیست مدل‌ها از بهترین/دقیق‌ترین به سبک‌ترین — اگه یکی شلوغ یا در دسترس نبود،
+    // خودکار میره سراغ بعدی، بدون اینکه کاربر چیزی بفهمه.
+    const MODEL_CHAIN = [
+      process.env.GEMINI_MODEL, // اگه دستی ست شده بود، همیشه اول امتحان میشه
+      "gemini-2.5-flash",
+      "gemini-flash-latest",
+      "gemini-2.5-flash-lite",
+      "gemini-flash-lite-latest",
+    ].filter(Boolean);
 
-    const r = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-goog-api-key": key },
-      body: JSON.stringify({
-        system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
-        contents,
-        // توجه: پارامترهای temperature/top_p/top_k در Gemini 3 حذف شده‌اند و نباید ارسال شوند
-      }),
-    });
+    let lastError = null;
 
-    const data = await r.json();
-    if (!r.ok) {
-      return res.status(r.status).json({ error: data?.error?.message || "خطای Gemini" });
+    for (const model of MODEL_CHAIN) {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+      try {
+        const r = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-goog-api-key": key },
+          body: JSON.stringify({
+            system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
+            contents,
+          }),
+        });
+
+        const data = await r.json();
+
+        if (r.ok) {
+          const answer =
+            data?.candidates?.[0]?.content?.parts?.map((p) => p.text || "").join("") ||
+            "جوابی دریافت نشد";
+          return res.status(200).json({ answer, modelUsed: model });
+        }
+
+        // اگر مدل موجود نبود (404)، شلوغ بود (429/503)، یا منقضی شده بود، برو سراغ مدل بعدی
+        lastError = data?.error?.message || `خطا با مدل ${model}`;
+        const retryableStatus = [404, 429, 503].includes(r.status);
+        if (!retryableStatus) {
+          // خطای دیگه‌ای بود (مثلاً کلید نامعتبر) که تغییر مدل کمکی نمی‌کنه
+          return res.status(r.status).json({ error: lastError });
+        }
+        // در غیر این صورت ادامه بده و مدل بعدی رو امتحان کن
+      } catch (fetchErr) {
+        lastError = String(fetchErr);
+      }
     }
 
-    const answer =
-      data?.candidates?.[0]?.content?.parts?.map((p) => p.text || "").join("") ||
-      "جوابی دریافت نشد";
-    return res.status(200).json({ answer });
+    // اگه همه‌ی مدل‌ها شکست خوردن
+    return res.status(503).json({
+      error: `همه‌ی مدل‌ها در دسترس نبودن. آخرین خطا: ${lastError}`,
+    });
   } catch (e) {
     return res.status(500).json({ error: String(e) });
   }
 }
 
 // -------------------------------------------------------------
-// System Prompt: شخصیت و چهارچوب مشاوره (فارسی اجباری)
+// System Prompt: written in English for precision, but it
+// explicitly forces all OUTPUT to the user to be in Persian.
 // -------------------------------------------------------------
 const SYSTEM_PROMPT = `
 You are "Health Agent", a warm, confident, professional AI skin & wellness
